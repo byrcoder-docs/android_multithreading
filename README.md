@@ -4,9 +4,9 @@ Android为了保证系统对用户保持高响应性，更是强制规定了在A
 >**Tip:** Android甚至都不允许在主线程中进行网络操作，当然这是可以理解的，因为网络操作的耗时往往是无法预期的，这取决于网络状况。
 
 #### 1. 显式创建线程
-在Java/Android中显式创建线程通常有两种方式:
-1. 继承Thread类
-2. 实现Runnable接口
+在Java/Android中显式创建线程通常有两种方式:  
+1. 继承Thread类  
+2. 实现Runnable接口  
 
 第二种方式比第一种方式要更加优雅。对于Android中隐式创建线程的方法，譬如`AyncTask`类，将在后面章节做讲解。下面展示分别用两种方式显式创建线程的例子。
 ##### 1.1 继承Thread类
@@ -62,10 +62,10 @@ new Thread(new MyRunnable()).start();
 ```
 其中`corePoolSize`是指线程池维持的线程数量；`maximumPoolSize`是线程池最大线程数；`keepAliveTime`是线程池闲置线程存活时间；`unit`是这个存活时间的单位；`workQueue`是等待队列。
 需要指出的是通常超时只意味着销毁那些超出`corePoolSize`数量的线程，当`corePoolSize`与`maximumPoolSize`相等时，`keepAliveTime`通常没有什么意义，设为`0L`即可。
-`workQueue`典型类型有以下两种：
-1. **ArrayBlockingQueue：**基于数组的先进先出队列，此队列创建时必须指定大小；
-2. **LinkedBlockingQueue：**基于链表的先进先出队列，不需要指定此队列大小；
-3. **synchronousQueue：**这个队列比较特殊，它不会保存提交的任务，而是将直接新建一个线程来执行新来的任务。
+`workQueue`典型类型有以下两种：  
+1. **ArrayBlockingQueue：**基于数组的先进先出队列，此队列创建时必须指定大小；  
+2. **LinkedBlockingQueue：**基于链表的先进先出队列，不需要指定此队列大小；  
+3. **synchronousQueue：**这个队列比较特殊，它不会保存提交的任务，而是将直接新建一个线程来执行新来的任务。  
 
 >**Tip:** 当ArrayBlockingQueue满时，再有新的任务到来，会抛出异常。
 
@@ -161,10 +161,10 @@ volatile boolean keepRunning = true;
 
 #### 4. 基本并发模型
 上面说到volatile关键字可以保证线程可见性，但并不保证线程是同步的，譬如对共享对象的并发修改，volatile无法保证修改是互斥进行的。这时候需要使用互斥操作。
-通常意义上讲，多线程并发有三种基本情况：
-1. Read / Read 并发模型
-2. Read / Write 并发模型
-3. Write / Write 并发模型
+通常意义上讲，多线程并发有三种基本情况：  
+1. Read / Read 并发模型  
+2. Read / Write 并发模型  
+3. Write / Write 并发模型  
 
 对于**Read/Read**情形并不需要使用锁来进行，仅存在对数据的读操作是线程安全的。**Write/Write**情形需要使用互斥锁来解决并发问题。**Read/Write**情形虽然也可以使用互斥锁来解决并发问题，但是使用读写锁则并发效率更高。
 

@@ -1,5 +1,5 @@
 ### Android多线程
-使用多线程的好处通常包括提高了代码的效率，充分利用计算资源，减少系统响应时间等。譬如可以将问题划分为子问题并将子问题交给不同的线程进行处理，如果这些线程需要共享一些争用资源，那么通常对这些争用资源的访问(读或者写操作)是需要进行**互斥操作**的，如果这些线程在某些时候需要以一定次序进行，那么则需要进行**同步操作**。互斥操作和同步操作一般都称为**多线程同步问题**。
+使用多线程的好处通常包括提高了代码的效率，充分利用计算资源，减少系统响应时间等。譬如可以将问题划分为子问题并将子问题交给不同的线程进行处理，如果这些线程需要共享一些争用资源，那么通常对这些争用资源的访问(读或者写操作)是需要进行**互斥操作**的，如果这些线程在某些时候需要以一定次序进行，那么则需要进行**同步操作**。互斥操作和同步操作一般都称为**多线程同步问题**。   
 Android为了保证系统对用户保持高响应性，更是强制规定了在Activity的主线程中的操作不能超过5秒，Service的主线程中的操作不能超过10秒，否则会抛出`ANR异常`。这使得我们必须要将耗时操作转移到工作线程中去。
 >**Tip:** Android甚至都不允许在主线程中进行网络操作，当然这是可以理解的，因为网络操作的耗时往往是无法预期的，这取决于网络状况。
 
@@ -60,12 +60,12 @@ new Thread(new MyRunnable()).start();
                                   long keepAliveTime, TimeUnit unit,
                                   BlockingQueue<Runnable> workQueue);
 ```
-其中`corePoolSize`是指线程池维持的线程数量；`maximumPoolSize`是线程池最大线程数；`keepAliveTime`是线程池闲置线程存活时间；`unit`是这个存活时间的单位；`workQueue`是等待队列。
-需要指出的是通常超时只意味着销毁那些超出`corePoolSize`数量的线程，当`corePoolSize`与`maximumPoolSize`相等时，`keepAliveTime`通常没有什么意义，设为`0L`即可。
+其中`corePoolSize`是指线程池维持的线程数量；`maximumPoolSize`是线程池最大线程数；`keepAliveTime`是线程池闲置线程存活时间；`unit`是这个存活时间的单位；`workQueue`是等待队列。   
+需要指出的是通常超时只意味着销毁那些超出`corePoolSize`数量的线程，当`corePoolSize`与`maximumPoolSize`相等时，`keepAliveTime`通常没有什么意义，设为`0L`即可。   
 `workQueue`典型类型有以下两种：  
-1. **ArrayBlockingQueue：**基于数组的先进先出队列，此队列创建时必须指定大小；  
-2. **LinkedBlockingQueue：**基于链表的先进先出队列，不需要指定此队列大小；  
-3. **synchronousQueue：**这个队列比较特殊，它不会保存提交的任务，而是将直接新建一个线程来执行新来的任务。  
+1. **ArrayBlockingQueue：**基于数组的先进先出队列，此队列创建时必须指定大小；     
+2. **LinkedBlockingQueue：**基于链表的先进先出队列，不需要指定此队列大小；     
+3. **synchronousQueue：**这个队列比较特殊，它不会保存提交的任务，而是将直接新建一个线程来执行新来的任务。     
 
 >**Tip:** 当ArrayBlockingQueue满时，再有新的任务到来，会抛出异常。
 
@@ -76,7 +76,7 @@ execute()
 shutdown()
 shutdownNow()
 ```
-`execute()`接受一个`Runnable`对象，用来向线程池提交一个任务，交由线程池去执行。
+`execute()`接受一个`Runnable`对象，用来向线程池提交一个任务，交由线程池去执行。   
 `shutdown()`和`shutdownNow()`都是用来关闭线程池的。他们的区别在于`shutdown()`不会立刻关闭线程池，而等到所有的等待队列的任务执行完才终止，但不会接受新的任务了；`shutdownNow()`会立刻关闭线程池，试图打断正在执行的任务，清空等待队列，返回尚未执行的任务。
 
 ##### 2.3 使用ThreadPoolExecutor的例子
@@ -110,7 +110,7 @@ Executors.newSingleThreadExecutor();   //创建容量为1的线程池
 Executors.newFixedThreadPool(int threadNum);    //创建固定容量大小的线程池
 Executors.newCachedThreadPool();   //创建一个缓冲池
 ```
-前两个方法创建的线程池`corePoolSize`和`maximumPoolSize`值是相等的，使用`LinkedBlockingQueue`；最后一个方法`corePoolSize = 0`，`maximumPoolSize = Integer.MAX_VALUE`，使用`SynchronousQueue`，超时为60s，这意味着来了任务就会创建线程运行，当线程空闲60s以后就会被销毁。
+前两个方法创建的线程池`corePoolSize`和`maximumPoolSize`值是相等的，使用`LinkedBlockingQueue`；最后一个方法`corePoolSize = 0`，`maximumPoolSize = Integer.MAX_VALUE`，使用`SynchronousQueue`，超时为60s，这意味着来了任务就会创建线程运行，当线程空闲60s以后就会被销毁。   
 这里给一个简单的使用例子，和`2.3节`例子是一致的。
 ```java
 ExecutorService executor = Executors.newFixedThreadPool(5);
@@ -146,12 +146,12 @@ public class Test extends Thread {
     }
 }
 ```
-从类设计者角度来说，其本意是在Test线程运行后1秒后在主线程中将`keepRunning`变量设为`false`,以此来终止Test线程中一直保持的循环。然而这对于Java来说并不总能做到。事实上，**Java的内存模型并不能保证一个线程中对变量的修改可以立即对其他线程可见**。`Ex3.1`运行的结果将取决于运行环境，一种可能的情况是Test线程的循环将一直循环下去，这将背离类设计者的意图。
-解决这个问题的途径有两个：
-1. 使用**volatile**关键字
-2. 使用**synchronzied**关键字  
+从类设计者角度来说，其本意是在Test线程运行后1秒后在主线程中将`keepRunning`变量设为`false`,以此来终止Test线程中一直保持的循环。然而这对于Java来说并不总能做到。事实上，**Java的内存模型并不能保证一个线程中对变量的修改可以立即对其他线程可见**。`Ex3.1`运行的结果将取决于运行环境，一种可能的情况是Test线程的循环将一直循环下去，这将背离类设计者的意图。   
+解决这个问题的途径有两个：   
+1. 使用**volatile**关键字   
+2. 使用**synchronzied**关键字     
 
-第二种方案留在后面做讲解，这里只讲解使用volatile关键字。
+第二种方案留在后面做讲解，这里只讲解使用volatile关键字。   
 本质上将，volatile保证了变量在cache中的值总是最新的，从而可以**保证对volatile变量的修改可以立刻对所有线程可见**。通常在**一个或多个读线程/一个写线程**的情况下，将共享对象设置为volatile就可以解决问题，这时候volatile的作用类似于一个写锁。上面的代码只需简单修改为如下即可：
 ```
 volatile boolean keepRunning = true;
@@ -169,7 +169,7 @@ volatile boolean keepRunning = true;
 对于**Read/Read**情形并不需要使用锁来进行，仅存在对数据的读操作是线程安全的。**Write/Write**情形需要使用互斥锁来解决并发问题。**Read/Write**情形虽然也可以使用互斥锁来解决并发问题，但是使用读写锁则并发效率更高。
 
 #### 5. 互斥锁
-互斥锁可以进行互斥操作，在Java中可以通过`synchronized`关键字或者`ReentrantLock`来通过对**临界区**加互斥锁的方式解决并发问题。这对于Read/Write并发模型和Write/Write并发模型都是有效的。
+互斥锁可以进行互斥操作，在Java中可以通过`synchronized`关键字或者`ReentrantLock`来通过对**临界区**加互斥锁的方式解决并发问题。这对于Read/Write并发模型和Write/Write并发模型都是有效的。   
 先来看一个对共享对象并发修改有问题的例子：
 ```java
 public class Test1 {
@@ -272,7 +272,7 @@ public class Test1 {
 ```
 
 #### 6. 读写锁
-对于**Read/Write**问题可以考虑使用读写锁来解决并发问题，对于**读写锁可以保证可以有多个线程同时对资源进行读操作，而只有一个线程可以在某个时刻对资源进行写操作。**写锁类似于synchronized，获得写锁的线程可以独享写的操作，其他线程无法获得写锁或者读锁，直到写锁被释放。获得读锁的线程可以允许其他线程获得读锁，但直到所有的读锁被释放才允许某个线程获得写锁。
+对于**Read/Write**问题可以考虑使用读写锁来解决并发问题，对于**读写锁可以保证可以有多个线程同时对资源进行读操作，而只有一个线程可以在某个时刻对资源进行写操作。**写锁类似于synchronized，获得写锁的线程可以独享写的操作，其他线程无法获得写锁或者读锁，直到写锁被释放。获得读锁的线程可以允许其他线程获得读锁，但直到所有的读锁被释放才允许某个线程获得写锁。   
 首先看一个简单的并发读写例子。
 ```java
 public class Test2 {
@@ -345,7 +345,7 @@ public synchronized void read() {
     Log.d("gyw", "value = " + value);
 }
 ```
-然而使用读写锁可以进一步提高并发吞吐量，提高程序的效率。在Java中可以使用`ReentrantReadWriteLock`来实现读写锁；配对使用`readWriteLock.readLock().lock()`和`readWriteLock.readLock().unlock()`来获取/释放读锁；配对使用`readWriteLock.writeLock().lock();`和`readWriteLock.writeLock().unlock();`来获取/释放写锁。
+然而使用读写锁可以进一步提高并发吞吐量，提高程序的效率。在Java中可以使用`ReentrantReadWriteLock`来实现读写锁；配对使用`readWriteLock.readLock().lock()`和`readWriteLock.readLock().unlock()`来获取/释放读锁；配对使用`readWriteLock.writeLock().lock();`和`readWriteLock.writeLock().unlock();`来获取/释放写锁。  
 使用读写锁的例子如下所示：
 ```java
 public class Test2 {

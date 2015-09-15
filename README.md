@@ -1,7 +1,7 @@
 ### Android多线程
 使用多线程的好处通常包括提高了代码的效率，充分利用计算资源，减少系统响应时间等。譬如可以将问题划分为子问题并将子问题交给不同的线程进行处理，如果这些线程需要共享一些争用资源，那么通常对这些争用资源的访问(读或者写操作)是需要进行**互斥操作**的，如果这些线程在某些时候需要以一定次序进行，那么则需要进行**同步操作**。互斥操作和同步操作一般都称为**多线程同步问题**。
 Android为了保证系统对用户保持高响应性，更是强制规定了在Activity的主线程中的操作不能超过5秒，Service的主线程中的操作不能超过10秒，否则会抛出`ANR异常`。这使得我们必须要将耗时操作转移到工作线程中去。
->**Tip: ** Android甚至都不允许在主线程中进行网络操作，当然这是可以理解的，因为网络操作的耗时往往是无法预期的，这取决于网络状况。
+>**Tip:** Android甚至都不允许在主线程中进行网络操作，当然这是可以理解的，因为网络操作的耗时往往是无法预期的，这取决于网络状况。
 
 #### 1. 显式创建线程
 在Java/Android中显式创建线程通常有两种方式:
@@ -49,7 +49,7 @@ new Thread(new MyRunnable()).start();
 
 #### 2. 线程池
 创建和销毁线程本身是一个耗时耗资源的操作，持有过多线程本身也需要消耗资源，因此应该尽可能避免创建过多的线程。一个方法是使用线程池来复用已创建的线程。Java的`ThreadPoolExecutor`类可以帮助我们创建线程池并利用线程池来执行多线程任务。
->**Tip: **`ThreadPoolExecutor`继承自`AbstractExecutorService`，而`AbstractExecutorService`实现了`ExecutorService`接口。
+>**Tip:** `ThreadPoolExecutor`继承自`AbstractExecutorService`，而`AbstractExecutorService`实现了`ExecutorService`接口。
 
 先来看看`ThreadPoolExecutor`这个核心类。
 
@@ -67,7 +67,7 @@ new Thread(new MyRunnable()).start();
 2. **LinkedBlockingQueue：**基于链表的先进先出队列，不需要指定此队列大小；
 3. **synchronousQueue：**这个队列比较特殊，它不会保存提交的任务，而是将直接新建一个线程来执行新来的任务。
 
->**Tip: **当ArrayBlockingQueue满时，再有新的任务到来，会抛出异常。
+>**Tip:** 当ArrayBlockingQueue满时，再有新的任务到来，会抛出异常。
 
 
 ##### 2.2 ThreadPoolExecutor几个重要方法
@@ -121,7 +121,7 @@ for (int i = 0; i < 10; ++i) {
 executor.shutdown();
 ```
 
->**Resource: **对于Java线程池更多的知识，可以阅读以下网址：
+>**Resource:** 对于Java线程池更多的知识，可以阅读以下网址：
 >[http://www.cnblogs.com/dolphin0520/p/3932921.html](http://www.cnblogs.com/dolphin0520/p/3932921.html)
 
 #### 3. Java内存模型与线程可见性
@@ -156,7 +156,7 @@ public class Test extends Thread {
 ```
 volatile boolean keepRunning = true;
 ```
->**Caution: ** 必须值得注意的一点是，volatile相当于写锁有效的前提是，写的操作必须是**原子的**。如果写的操作不是原子的(譬如写操作不是`t.keepRunning = false`而是类似于`mIntIndex++`，`'++'`操作不是原子操作)，则会造成同步问题。
+>**Caution:** 必须值得注意的一点是，volatile相当于写锁有效的前提是，写的操作必须是**原子的**。如果写的操作不是原子的(譬如写操作不是`t.keepRunning = false`而是类似于`mIntIndex++`，`'++'`操作不是原子操作)，则会造成同步问题。
 
 
 #### 4. 基本并发模型
@@ -244,11 +244,11 @@ public class Test1 {
     }
 }
 ```
->**Caution: ** 使用Synchronized是一种简单有效地支持多线程同步的方法，然而同步操作会降低吞吐量，并不是所有的东西都需要加锁保护，应该将**锁粒度最小化**。另外，更糟糕的是，加锁操作有可能会导致**死锁**。事实上最容易发生死锁的情况就是在一个同步代码块中调用了另一个对象的方法，而那个对象已经被锁住并等待当前对象释放该锁。因此尽量**不要在synchronized同步块中调用另一个对象的方法**，除非你非常清楚另一个对象的类的代码不会发生死锁。
+>**Caution:** 使用Synchronized是一种简单有效地支持多线程同步的方法，然而同步操作会降低吞吐量，并不是所有的东西都需要加锁保护，应该将**锁粒度最小化**。另外，更糟糕的是，加锁操作有可能会导致**死锁**。事实上最容易发生死锁的情况就是在一个同步代码块中调用了另一个对象的方法，而那个对象已经被锁住并等待当前对象释放该锁。因此尽量**不要在synchronized同步块中调用另一个对象的方法**，除非你非常清楚另一个对象的类的代码不会发生死锁。
 
 ##### 5.4 ReentrantLock
 ReentrantLock是JDK1.5新增加的互斥锁，通常情况下，`ReentrantLock`会比`synchronized`效率要高，尤其是在搞资源争用情形下。然而，这并不表示我们要在所有情形下使用ReentrantLock替代synchronized，编写程序有一个重要的够用原则，只有在需要优化的情形下才进行优化，通常情形下synchronized的效率已经完全够用，此时并不需要改用ReentrantLock。辩证唯物地看，synchronized也具有不需要显式释放互斥锁，支持低版本JDK等优点。
->**Resource: **关于ReentrantLock和synchronized的效率对比以及什么时候该使用ReentrantLock的更多知识，可以参见以下链接：
+>**Resource:** 关于ReentrantLock和synchronized的效率对比以及什么时候该使用ReentrantLock的更多知识，可以参见以下链接：
 >[http://www.ibm.com/developerworks/library/j-jtp10264/](http://www.ibm.com/developerworks/library/j-jtp10264/)
 
 以下代码用来展示使用ReentrantLock解决本节的并发互斥问题。
@@ -400,11 +400,11 @@ public class Test3 {
     }
 }
 ```
->**Warnning：**注意使用`volatile`关键字来保证线程可见性。
+>**Warnning** 注意使用`volatile`关键字来保证线程可见性。
 
 #### 8. 线程安全的数据结构
 `第7节`讲到了一些基本的`Atomic`变量可以用于并发操作，Java支持对一些更高级数据结构的安全访问，譬如`CopyOnWriteArrayList`和`ConcurrentHashMap`,分别支持数组和映射数据结构进行线程安全地访问。
->**Tip: **`HashTable`也是线程安全的，然而其效率要低于`ConcurrentHashMap`，这是由于`ConcurrentHashMap`采取了部分锁机制，而非使用全锁。更深入的了解可以点击下面的网址：
+>**Tip:** `HashTable`也是线程安全的，然而其效率要低于`ConcurrentHashMap`，这是由于`ConcurrentHashMap`采取了部分锁机制，而非使用全锁。更深入的了解可以点击下面的网址：
 >[http://wiki.jikexueyuan.com/project/java-collection/concurrenthashmap.html](http://wiki.jikexueyuan.com/project/java-collection/concurrenthashmap.html)
 
 先看一个使用`HashMap`导致线程不安全的例子
@@ -472,7 +472,7 @@ public class Test4 {
 }
 ```
 
->**Warning: **使用线程安全的数据结构可以确保多数据结构的多线程访问是安全的，通常单个对数据结构的操作是原子的，但这**绝不保证多个对数据结构的操作也是原子的**。如果后面的操作是依赖于前面操作的结果，需要清醒地意识到在别的线程中可以会存在对数据的修改。
+>**Warning:** 使用线程安全的数据结构可以确保多数据结构的多线程访问是安全的，通常单个对数据结构的操作是原子的，但这**绝不保证多个对数据结构的操作也是原子的**。如果后面的操作是依赖于前面操作的结果，需要清醒地意识到在别的线程中可以会存在对数据的修改。
 >```java
 >    public void not_a_transaction() {
         safeMap.put(someKey1, someValue1);

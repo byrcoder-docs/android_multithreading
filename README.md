@@ -39,12 +39,12 @@ new Thread(new MyRunnable()).start();
 ```
 通常也可以使用匿名函数简化代码
 ```java
-        new Thread(new Runnable() {
-            @Override
-            public void run() {
-                //TODO...
-            }
-        }).start();
+new Thread(new Runnable() {
+    @Override
+    public void run() {
+        //TODO...
+    }
+}).start();
 ```
 
 #### 2. 线程池
@@ -474,10 +474,10 @@ public class Test4 {
 
 >**Warning:** 使用线程安全的数据结构可以确保多数据结构的多线程访问是安全的，通常单个对数据结构的操作是原子的，但这**绝不保证多个对数据结构的操作也是原子的**。如果后面的操作是依赖于前面操作的结果，需要清醒地意识到在别的线程中可以会存在对数据的修改。
 >```java
->    public void not_a_transaction() {
-        safeMap.put(someKey1, someValue1);
-        //other threads could execute between those two statements
-        safeMap.get(someKey2);
-    }
+public void not_a_transaction() {
+    safeMap.put(someKey1, someValue1);
+    //other threads could execute between those two statements
+    safeMap.get(someKey2);
+}
 >```
 >在put和get之间是有可能存在cpu被其他线程占用并执行对safeMap操作的情形，如果需要确保这样的操作是事物性的，可以考虑使用`synchronized`。

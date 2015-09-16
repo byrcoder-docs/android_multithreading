@@ -1,9 +1,10 @@
 ### Android多线程
-使用多线程的好处通常包括提高了代码的效率，充分利用计算资源，减少系统响应时间等。譬如可以将问题划分为子问题并将子问题交给不同的线程进行处理，如果这些线程需要共享一些争用资源，那么通常对这些争用资源的访问(读或者写操作)是需要进行**互斥操作**的，如果这些线程在某些时候需要以一定次序进行，那么则需要进行**同步操作**。互斥操作和同步操作一般都称为**多线程同步问题**。   
+使用多线程的好处通常包括提高了代码的效率，充分利用计算资源，减少系统响应时间等。譬如可以将问题划分为子问题并将子问题交给不同的线程进行处理，如果这些线程需要共享一些争用资源，那么通常对这些争用资源的访问(读或者写操作)是需要进行**互斥操作**的（解决并发问题），如果这些线程在某些时候需要以一定次序进行，那么则需要进行**同步操作**（解决协作问题）。互斥操作和同步操作一般都称为**多线程同步问题**。   
 Android为了保证系统对用户保持高响应性，更是强制规定了在Activity的主线程中的操作不能超过5秒，Service的主线程中的操作不能超过10秒，否则会抛出`ANR异常`。这使得我们必须要将耗时操作转移到工作线程中去。
 >**Tip:** Android甚至都不允许在主线程中进行网络操作，当然这是可以理解的，因为网络操作的耗时往往是无法预期的，这取决于网络状况。
 
-#### 1. 显式创建线程
+#### 1. 线程基本操作
+这里介绍仅介绍几个最常用的线程基本操作，包括创建线程、中断线程
 在Java/Android中显式创建线程通常有两种方式:  
 1. 继承Thread类  
 2. 实现Runnable接口  
@@ -403,7 +404,7 @@ public class Test3 {
 >**Warnning** 注意使用`volatile`关键字来保证线程可见性。
 
 #### 8. 线程安全的数据结构
-`第7节`讲到了一些基本的`Atomic`变量可以用于并发操作，Java支持对一些更高级数据结构的安全访问，譬如`CopyOnWriteArrayList`和`ConcurrentHashMap`,分别支持数组和映射数据结构进行线程安全地访问。
+`第7节`讲到了一些基本的`Atomic`变量可以用于并发操作，Java支持对一些更高级数据结构的安全访问，譬如`CopyOnWriteArrayList`、`ConcurrentLinkedQueue`和`ConcurrentHashMap`,分别支持数组和映射数据结构进行线程安全地访问。
 >**Tip:** `HashTable`也是线程安全的，然而其效率要低于`ConcurrentHashMap`，这是由于`ConcurrentHashMap`采取了部分锁机制，而非使用全锁。更深入的了解可以点击下面的网址：
 >[http://wiki.jikexueyuan.com/project/java-collection/concurrenthashmap.html](http://wiki.jikexueyuan.com/project/java-collection/concurrenthashmap.html)
 
@@ -481,3 +482,244 @@ public void not_a_transaction() {
 }
 >```
 >在put和get之间是有可能存在cpu被其他线程占用并执行对safeMap操作的情形，如果需要确保这样的操作是事物性的，可以考虑使用`synchronized`。
+
+#### 9. 信号量(Semaphore)
+信号量是较为低级的多线程同步机制，但是仍然表现出强大的性能，信号量既可以充当互斥锁来解决并发问题，也可以进行同步操作解决多线程协作问题。  
+信号量使用两个简单的原语操作，即**wait操作**(也叫P操作/acquire操作)和**post操作**(也叫V操作/signal操作/release操作)来实现对争用资源的互斥访问和多线程间的同步操作。先来讲解下**wait/post原语**操作。
+
+##### 9.1 wait/post原语
+```
+wait原语
+----------
+Procedure sem_wait(Semaphore S)
+     S = S - 1;
+     if(S < 0)
+          阻塞进程
+```
+
+```
+post原语
+----------
+Procedure sem_post(Semaphore S)
+     S = S + 1;
+     if(S >= 0)
+          唤醒进程
+```
+
+##### 9.2 Java semaphore APIs
+只列举几个最常用的API
+```java
+Semaphore(int permits) //构造函数，permits为信号量初值
+Semaphore(int permits, boolean fair) //fair为公平参数
+
+public void acquire() throws InterruptedException //wait操作，信号量减1
+public void acquire(int n) throws InterruptedException //wait操作，信号量减n
+
+public void release()  //post操作，信号量加1
+public void release(int n)  //post操作，信号量加n
+```
+
+##### 9.3 信号量充当互斥锁
+`第5节`讲到了Java中典型关于互斥锁的应用，这里展示如何使用信号量充当互斥锁。  
+**充当互斥锁需要将信号量初始值置为1**
+```java
+public class Test5 {
+    private volatile int count = 0;
+
+    private Semaphore sem_mutex = new Semaphore(1);
+
+    public void increaseCount() {
+        for (int i = 0; i < 200; ++i) {
+            try {
+                sem_mutex.acquire(); //critial area
+                count++;
+                Log.d("gyw", "count = " + count);
+                sem_mutex.release(); //critical area
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+}
+```
+
+```java
+final Test5 test5 = new Test5();
+
+ExecutorService executor = Executors.newFixedThreadPool(5);
+for (int i = 0; i < 5; ++i) {
+    Runnable runnable = new Runnable() {
+        @Override
+        public void run() {
+            test5.increaseCount();
+        }
+    };
+    executor.execute(runnable);
+}
+executor.shutdown();
+```
+
+##### 9.4 用信号量实现线程顺序执行
+信号量可以保证若干线程按顺序执行。
+**信号量初始值设为0**
+```java
+final Semaphore sem_sync12 = new Semaphore(0);
+
+Thread thread1 = new Thread(new Runnable() {
+    @Override
+    public void run() {
+        Log.d("gyw", "I am thread1");
+        sem_sync12.release();
+    }
+});
+
+Thread thread2 = new Thread(new Runnable() {
+    @Override
+    public void run() {
+        try {
+            sem_sync12.acquire(); //wait thread1 having finished
+            Log.d("gyw", "I am thread2");
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+});
+
+thread2.start();
+thread1.start();
+```
+程序运行结果是确定的，尽管thread2先thread1启动，打印结果如下：
+```
+09-16 09:32:15.996  31560-31575/? D/gyw﹕ I am thread1
+09-16 09:32:15.996  31560-31574/? D/gyw﹕ I am thread2
+```
+
+##### 9.5 无限长队列的生产者-消费者问题
+生产者-消费者问题是用一个线程模拟生产者，每次生产一个产品放入队列中；用另一个线程模拟消费者，每次从队列中取走一个产品来消费。这个问题既涉及到**并发控制**，也涉及到**同步控制**。  
+因为队列是共享的，所以在多线程都对其进行操作时需要进行并发控制，可以使用并发锁；也因为生产者，消费者这两个线程间存在反馈抑制，因此需要进行同步控制。对于无限长队列来说，不用担心队列溢出的问题，因此生产者可以放肆进行生产，因此不存在对生产者的反馈抑制；而对于消费者，必须是队列中已经存在了产品才可以进行消费，因此存在生产者对消费者的反馈抑制，即生产者生产了一个产品向消费者发出`post`通知，消费者必须首先调用`wait`操作来确认是否存在产品进行消费，否则必须阻塞自己来安静等待生产者的`post`通知的到来。  
+如果使用`semaphore`来进行并发控制，只需要设置一个`sem_canConsume`信号量即可，**初值设为0**，含义是一开始的时候并没有产品生产出来。以下是一个`Demo`。
+```java
+final Queue<Integer> queue = new LinkedList<>();
+
+final Semaphore sem_canConsume = new Semaphore(0);
+final Object lock = new Object();
+
+Thread producer = new Thread(new Runnable() {
+    @Override
+    public void run() {
+        for (int i = 0; i < 500; ++i) {
+            synchronized (lock) {
+                queue.offer(i); //add a product to the queue
+                Log.d("gyw", "produced; queueSize = " + queue.size());
+            }
+            sem_canConsume.release(); //signal that one product is added
+        }
+    }
+});
+
+Thread consumer = new Thread(new Runnable() {
+    @Override
+    public void run() {
+        try {
+            for (int i = 0; i < 500; ++i) {
+                sem_canConsume.acquire(); //wait that there is at least one product
+                synchronized (lock) {
+                    queue.poll(); //consume a product
+                    Log.d("gyw", "consumed; queueSize = " + queue.size());
+                }
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+});
+
+producer.start();
+consumer.start();
+```
+
+##### 9.6 有限长队列的生产者-消费者问题
+和无限长队列同类问题比较起来，由于队列是有限长的，因此存在了消费者对生产者的反馈抑制。如果使用`semaphore`来进行并发控制，除了设置一个`sem_canConsume`信号量来实现生产者对消费者的反馈抑制，**初值设为0**，含义是一开始的时候并没有产品生产出来；还需要设置一个`sem_canProduce`信号量来实现消费者对生产者的反馈抑制，**初值设为队列长度QUEUE_LEN**，含义是最开始的时候有QUEUE_LEN个位置可以供生产者使用。以下是一个`Demo`。
+```java
+final int QUEUE_LEN = 3;
+
+final Queue<Integer> queue = new LinkedList<>();
+
+final Semaphore sem_canConsume = new Semaphore(0);
+final Semaphore sem_canProduce = new Semaphore(QUEUE_LEN);
+final Object lock = new Object();
+
+Thread producer = new Thread(new Runnable() {
+    @Override
+    public void run() {
+        for (int i = 0; i < 15; ++i) {
+            try {
+                sem_canProduce.acquire(); //wait until queue is not full
+                synchronized (lock) {
+                    queue.offer(i); //add a product to the queue
+                    Log.d("gyw", "produced; queueSize = " + queue.size());
+                }
+                sem_canConsume.release(); //signal that one product is added
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+});
+
+Thread consumer = new Thread(new Runnable() {
+    @Override
+    public void run() {
+        try {
+            for (int i = 0; i < 15; ++i) {
+                sem_canConsume.acquire(); //wait that there is at least one product
+                synchronized (lock) {
+                    queue.poll(); //consume a product
+                    Log.d("gyw", "consumed; queueSize = " + queue.size());
+                }
+                sem_canProduce.release();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+});
+
+producer.start();
+consumer.start();
+```
+运行结果如下：
+```
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 3
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 0
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 3
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 3
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 0
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 3
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 3
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 0
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 1
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 0
+```
+可以看到，`queueSize`从来没有超过程序中设置的`QUEUE_LEN`值，意味着成功实现了消费者对生产者的反馈抑制；`queueSize`也从来没有是负值或者程序抛出异常，意味着成功实现了生产者对消费者的反馈抑制。
+>**Tip:** 简单地使用信号量无法做到**多生产者/多消费者**的同步控制。这个问题将留在后面章节解决。

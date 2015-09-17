@@ -924,7 +924,8 @@ if (queue.size() == 0) { //queue is empty
 1. **ArrayBlockingQueue：** 基于数组实现的一个阻塞队列，在创建ArrayBlockingQueue对象时必须指定容量大小。另外可以指定公平性，即不保证等待时间最长的队列最优先能够访问队列。
 2. **LinkedBlockingQueue：** 基于链表实现的一个阻塞队列，在创建LinkedBlockingQueue对象时如果不指定容量大小，则默认大小为Integer.MAX_VALUE。由于内存是动态分配的，通常情况下无需指定容量大小。
 3. **PriorityBlockingQueue：** 基于堆实现的一个阻塞队列，不同于`ArrayBlockingQueue`和`LinkedBlockingQueue`的先进先出性质，`PriorityBlockingQueue`会按照队列元素优先级顺序出队，每次出队的元素都是优先级最高的元素。无需指定容量大小。
-4. **DelayQueue：** 基于`PriorityBlockingQueue`，`DelayQueue`中的元素只有当其指定的延迟时间到了，才能够从队列中获取到该元素。无需指定容量大小。
+4. **DelayQueue：** 基于`PriorityBlockingQueue`，`DelayQueue`中的元素只有当其指定的延迟时间到了，才能够从队列中获取到该元素。无需指定容量大小。  
+
 >**Tip:** 以上所说的常用阻塞队列中，前两种是有界队列，后两种是无界队列。
 
 ##### 11.2 阻塞队列基本APIs

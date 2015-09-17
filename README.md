@@ -722,4 +722,196 @@ consumer.start();
 09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 0
 ```
 可以看到，`queueSize`从来没有超过程序中设置的`QUEUE_LEN`值，意味着成功实现了消费者对生产者的反馈抑制；`queueSize`也从来没有是负值或者程序抛出异常，意味着成功实现了生产者对消费者的反馈抑制。
->**Tip:** 简单地使用信号量无法做到**多生产者/多消费者**的同步控制。这个问题将留在后面章节解决。
+>**Tip:** 简单地使用信号量无法做到**多生产者-多消费者**的同步控制。这个问题将留在后面章节解决。
+
+#### 10. 条件变量(Condition)
+Java条件变量可以用来进行线程间的同步控制，尤其是在反馈调节上较`semaphore`更为强大。
+
+##### 10.1 条件变量常用APIs
+```java
+//初始化条件变量
+ReentrantLock lock = new ReentrantLock();
+Condition cond_canConsume = lock.newCondition();
+
+await() //wait操作 
+signal() //post操作
+```
+
+以下展示如何使用条件变量解决生产者-消费者问题。
+
+##### 10.2 有限长队列的生产者-消费者问题
+先来看看生产者和消费者的代码，这里面包含了如何用锁来解决并发控制，以及如何用条件变量来解决同步控制。
+```java
+private static final int QUEUE_LEN = 3;
+private Queue<Integer> queue = new LinkedList<>();
+
+private ReentrantLock lock = new ReentrantLock();
+private Condition cond_canConsume = lock.newCondition();
+private Condition cond_canProduce = lock.newCondition();
+
+
+public void producer() {
+     for (int i = 0; i < 5; ++i) {
+         lock.lock();
+
+         try {
+             while (queue.size() == QUEUE_LEN) { //queue is full
+                 Log.d("gyw", "queue is full, waiting...");
+                 cond_canProduce.await();
+             }
+
+             //queue is not full now
+             queue.offer(i); //add a product to the queue
+             Log.d("gyw", "produced; queueSize = " + queue.size());
+             cond_canConsume.signal(); //signal that a product has been produced
+
+         } catch (InterruptedException e) {
+             e.printStackTrace();
+         } finally {
+             lock.unlock();
+         }
+
+     }
+ }
+
+ public void consumer() {
+     for (int i = 0; i < 5; ++i) {
+         lock.lock();
+
+         try {
+             while (queue.size() == 0) { //queue is empty
+                 Log.d("gyw", "queue is empty, waiting...");
+                 cond_canConsume.await();
+             }
+
+             //queue is not empty now
+             queue.poll(); //consume a product
+             Log.d("gyw", "consumed; queueSize = " + queue.size());
+             cond_canProduce.signal(); //signal that a product has been produced
+
+         } catch (InterruptedException e) {
+             e.printStackTrace();
+         } finally {
+             lock.unlock();
+         }
+
+     }
+ }
+```
+接着来看看启动代码
+```
+ExecutorService executor = Executors.newFixedThreadPool(2);
+
+for (int i = 0; i < 1; ++i) { //add one producer thread
+    executor.execute(new Runnable() {
+        @Override
+        public void run() {
+            producer();
+        }
+    });
+}
+
+for (int i = 0; i < 1; ++i) { //add one consumer thread
+    executor.execute(new Runnable() {
+        @Override
+        public void run() {
+            consumer();
+        }
+    });
+}
+
+executor.shutdown();
+```
+程序运行结果如下：
+```
+09-17 08:15:29.105  21003-21016/? D/gyw﹕ produced; queueSize = 1
+09-17 08:15:29.105  21003-21016/? D/gyw﹕ produced; queueSize = 2
+09-17 08:15:29.105  21003-21016/? D/gyw﹕ produced; queueSize = 3
+09-17 08:15:29.105  21003-21016/? D/gyw﹕ queue is full, waiting...
+09-17 08:15:29.105  21003-21017/? D/gyw﹕ consumed; queueSize = 2
+09-17 08:15:29.105  21003-21017/? D/gyw﹕ consumed; queueSize = 1
+09-17 08:15:29.105  21003-21017/? D/gyw﹕ consumed; queueSize = 0
+09-17 08:15:29.115  21003-21017/? D/gyw﹕ queue is empty, waiting...
+09-17 08:15:29.115  21003-21016/? D/gyw﹕ produced; queueSize = 1
+09-17 08:15:29.115  21003-21016/? D/gyw﹕ produced; queueSize = 2
+09-17 08:15:29.115  21003-21017/? D/gyw﹕ consumed; queueSize = 1
+09-17 08:15:29.115  21003-21017/? D/gyw﹕ consumed; queueSize = 0
+```
+从结果中可以看出，当队列满的时候，生产者被抑制；当队列空的时候，消费者被抑制。
+
+##### 10.3 有限长队列的多生产者-多消费者问题
+`第9节`结尾提到，简单使用信号量无法解决**多生产者-多消费者**的同步控制问题，然而简单使用**条件变量**却很容易解决这个问题，简单到事实上这个问题已经解决了！没错就是在刚刚讲解的`10.2节`，**多生产者-多消费者**和**单生产者-单消费者**问题使用**条件变量**来解决同步控制问题是完全一致的。   
+其中生产者、消费者、条件变量申明无需变化，仅仅修改下启动代码就可以，修改也只是添加多了生产者和消费者线程来做演示。
+```java
+ExecutorService executor = Executors.newFixedThreadPool(4);
+
+for (int i = 0; i < 2; ++i) { //add producer threads
+    executor.execute(new Runnable() {
+        @Override
+        public void run() {
+            producer();
+        }
+    });
+}
+
+for (int i = 0; i < 2; ++i) { //add consumer threads
+    executor.execute(new Runnable() {
+        @Override
+        public void run() {
+            consumer();
+        }
+    });
+}
+
+executor.shutdown();
+```
+运行结果如下：
+```
+09-17 08:20:17.875  21155-21168/? D/gyw﹕ produced; queueSize = 1
+09-17 08:20:17.875  21155-21168/? D/gyw﹕ produced; queueSize = 2
+09-17 08:20:17.875  21155-21168/? D/gyw﹕ produced; queueSize = 3
+09-17 08:20:17.875  21155-21168/? D/gyw﹕ queue is full, waiting...
+09-17 08:20:17.875  21155-21169/? D/gyw﹕ queue is full, waiting...
+09-17 08:20:17.875  21155-21170/? D/gyw﹕ consumed; queueSize = 2
+09-17 08:20:17.875  21155-21170/? D/gyw﹕ consumed; queueSize = 1
+09-17 08:20:17.875  21155-21170/? D/gyw﹕ consumed; queueSize = 0
+09-17 08:20:17.875  21155-21170/? D/gyw﹕ queue is empty, waiting...
+09-17 08:20:17.885  21155-21168/? D/gyw﹕ produced; queueSize = 1
+09-17 08:20:17.885  21155-21168/? D/gyw﹕ produced; queueSize = 2
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ produced; queueSize = 3
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ queue is full, waiting...
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ consumed; queueSize = 2
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ consumed; queueSize = 1
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ consumed; queueSize = 0
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ queue is empty, waiting...
+09-17 08:20:17.885  21155-21170/? D/gyw﹕ queue is empty, waiting...
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ produced; queueSize = 1
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ produced; queueSize = 2
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ produced; queueSize = 3
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ consumed; queueSize = 2
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ consumed; queueSize = 1
+09-17 08:20:17.885  21155-21170/? D/gyw﹕ consumed; queueSize = 0
+09-17 08:20:17.885  21155-21170/? D/gyw﹕ queue is empty, waiting...
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ produced; queueSize = 1
+09-17 08:20:17.885  21155-21170/? D/gyw﹕ consumed; queueSize = 0
+```
+
+##### 10.4 假唤醒问题
+如果将10.3节的生产者和消费者代码中的
+```
+while (queue.size() == 0) { //queue is empty
+    Log.d("gyw", "queue is empty, waiting...");
+    cond_canConsume.await();
+}
+``` 
+替换成
+```
+if (queue.size() == 0) { //queue is empty
+    Log.d("gyw", "queue is empty, waiting...");
+    cond_canConsume.await();
+}
+```
+则代码存在假唤醒的潜在问题，所谓假唤醒是由于可能存在多个阻塞线程等待条件变量的信号，并在收到条件变量信号后被唤醒，而程序可能只允许其中一个线程在醒来后获得工作机会，其他的线程被唤醒后发现自己无事可做，只得再次进入阻塞状态。  
+当将代码中的`while`替换成`if`后，线程被唤醒后就不会再检查`queue.size()`是否为`0`了，想当然认为自己是被唤醒来获得工作机会的，从而直接执行后面代码，殊不知还有其他线程也被唤醒，而只有其中一个线程能获得工作机会，这将造成潜在错误。
+
+>**Warning:** 使用条件变量时，尽量使用`while`来判断条件是否达到，而不是`if`，从而避免假唤醒带来的错误。

@@ -915,3 +915,70 @@ if (queue.size() == 0) { //queue is empty
 当将代码中的`while`替换成`if`后，线程被唤醒后就不会再检查`queue.size()`是否为`0`了，想当然认为自己是被唤醒来获得工作机会的，从而直接执行后面代码，殊不知还有其他线程也被唤醒，而只有其中一个线程能获得工作机会，这将造成潜在错误。
 
 >**Warning:** 使用条件变量时，尽量使用`while`来判断条件是否达到，而不是`if`，从而避免假唤醒带来的错误。
+
+#### 11. 阻塞队列(Block Queue)
+阻塞队列用途多种多样，在`2.1`节中就提到了Java线程池使用阻塞队列作为线程缓存队列。不只是如此，在多线程同步控制上，阻塞队列也是可以大显身手的。  
+事实上，阻塞队列的实现就是使用到了`第10节`讲到的条件变量，使用一个`ReentrantLock`来控制队列的并发，用两个`Condition`变量来控制队列的同步。
+
+##### 11.1 几种常用的阻塞队列
+1. **ArrayBlockingQueue：** 基于数组实现的一个阻塞队列，在创建ArrayBlockingQueue对象时必须指定容量大小。另外可以指定公平性，即不保证等待时间最长的队列最优先能够访问队列。
+2. **LinkedBlockingQueue：** 基于链表实现的一个阻塞队列，在创建LinkedBlockingQueue对象时如果不指定容量大小，则默认大小为Integer.MAX_VALUE。由于内存是动态分配的，通常情况下无需指定容量大小。
+3. **PriorityBlockingQueue：** 基于堆实现的一个阻塞队列，不同于`ArrayBlockingQueue`和`LinkedBlockingQueue`的先进先出性质，`PriorityBlockingQueue`会按照队列元素优先级顺序出队，每次出队的元素都是优先级最高的元素。无需指定容量大小。
+4. **DelayQueue：** 基于`PriorityBlockingQueue`，`DelayQueue`中的元素只有当其指定的延迟时间到了，才能够从队列中获取到该元素。无需指定容量大小。
+>**Tip:** 以上所说的常用阻塞队列中，前两种是有界队列，后两种是无界队列。
+
+##### 11.2 阻塞队列基本APIs
+阻塞队列支持常规队列的基本操作，包括
+```
+add(E e)：队尾插入元素，插入失败则抛出异常。
+
+remove()：移除队首元素，溢出失败则抛出异常。
+
+offer(E e)：队尾插入元素，如果插入成功，则返回true；如果插入失败，则返回false。
+
+poll()：移除并获取队首元素；若成功，则返回队首元素；否则返回null。
+
+peek()：获取队首元素(并不移出)，若成功，则返回队首元素；否则返回null。
+```
+对于阻塞队列，还支持阻塞存取方法
+```
+put(E e)：向队尾插入元素，如果队列满，则等待。
+
+take()：从队首取元素，如果队列为空，则等待。
+```
+阻塞队列初始化，类似于
+```java
+BlockingQueue<Integer> queue = new ArrayBlockingQueue<Integer>(3)
+BlockingQueue<String> queue = new LinkedBlockingDeque<>()
+```
+
+##### 11.3 使用阻塞队列解决多生产者-多消费者同步问题
+使用阻塞队列来解决**生产者-消费者**问题大概从编程上来说最简单的了，由于并发控制和同步控制代码已经被阻塞队列自身实现所封装，我们从代码的表面已经看不到并发控制和同步控制了。
+消费者和生产者代码如下：
+```java
+private static final int QUEUE_LEN = 3;
+private BlockingQueue<Integer> queue = new ArrayBlockingQueue<Integer>(3);
+
+public void producer() {
+    for (int i = 0; i < 5; ++i) {
+        try {
+            queue.put(i);
+            Log.d("gyw", "produced; queueSize = " + queue.size());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+public void consumer() {
+    for (int i = 0; i < 5; ++i) {
+        try {
+            queue.take();
+            Log.d("gyw", "consumed; queueSize = " + queue.size());
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+启动代码和`10.3节`完全一致，这里就不再累赘列举了。

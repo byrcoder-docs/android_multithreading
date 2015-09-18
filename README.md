@@ -1,5 +1,5 @@
 ### Android多线程
-使用多线程的好处通常包括提高了代码的效率，充分利用计算资源，减少系统响应时间等。譬如可以将问题划分为子问题并将子问题交给不同的线程进行处理，如果这些线程需要共享一些争用资源，那么通常对这些争用资源的访问(读或者写操作)是需要进行**互斥操作**的（解决并发问题），如果这些线程在某些时候需要以一定次序进行，那么则需要进行**同步操作**（解决协作问题）。互斥操作和同步操作一般都称为**多线程同步问题**。   
+使用多线程的好处通常包括提高了代码的效率，充分利用计算资源，减少系统响应时间等。譬如可以将问题划分为子问题并将子问题交给不同的线程进行处理，如果这些线程需要共享一些争用资源，那么通常对这些争用资源的访问(读或者写操作)是需要进行**互斥操作**的（解决并发问题）；如果这些线程在某些时候需要以一定次序进行，那么则需要进行**同步操作**（解决协作问题）。互斥操作和同步操作一般都称为**多线程同步问题**；另外当工作线程工作结束后，主线程可能还想知道工作线程的执行结果，不同的工作线程之间可能也希望进行**通信**(解决通信问题)。   
 Android为了保证系统对用户保持高响应性，更是强制规定了在Activity的主线程中的操作不能超过5秒，Service的主线程中的操作不能超过10秒，否则会抛出`ANR异常`。这使得我们必须要将耗时操作转移到工作线程中去。
 >**Tip:** Android甚至都不允许在主线程中进行网络操作，当然这是可以理解的，因为网络操作的耗时往往是无法预期的，这取决于网络状况。
 
@@ -1294,7 +1294,7 @@ thread2.start();
 
 ##### 12.4 ThreadLocal对象
 `12.1节`说到静态成员变量在不同实例化对象间是线程共享的(当然对同一个实例化对象更是线程共享了)，`12.1节`非静态成员变量对同一个实例化对象是线程共享的。事实上使用`ThreadLocal`就可以将这些共享的成员变量变成线程特有的(也成为线程私有的)。`ThreadLocal`提供以下常见方法：
-```
+```java
 public T get();  //获取当前线程的ThreadLocal绑定值
 public void set(T value); //设置当前线程的ThreadLocal绑定值
 public void remove(); //删除当前线程ThreadLocal绑定的值
@@ -1348,3 +1348,70 @@ thread2.start();
 
 >**Resource:** 关于`ThreadLocal`更多的知识，可以访问以下网址：
 [http://qifuguang.me/2015/09/02/[Java%E5%B9%B6%E5%8F%91%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%B8%83]%E8%A7%A3%E5%AF%86ThreadLocal/](http://qifuguang.me/2015/09/02/[Java%E5%B9%B6%E5%8F%91%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%B8%83]%E8%A7%A3%E5%AF%86ThreadLocal/)
+
+#### 13. 主线程与工作线程之间同步通信
+`1.1节`讲述了Java两种显式创建线程的方法，`第2节`讲述了如何使用线程池来在新线程中执行`Runnable`任务。当主线程不需要了解工作线程执行任务的情况，譬如结果，那么`第2节`的关于线程池的知识就已经足够了。然而，如果我们希望能在主线程中当工作线程结束时知道工作线程的任务结果，又能怎么办呢？本节将讲述使用`Callable`对象配合`Future`来实现这一点。  
+
+>**Tip:** 通过共享变量也可以做到这一点，但是一方面这破坏了封装性，另一方面在多线程中使用共享变量容易出错。使用`Callable`对象配合`Future`可以简单方便地实现主线程和工作线程之间的通信。
+
+在`第2节`介绍`ExecutorService`的时候，我们讲述了可以利用`execute(Runnable r)`方法来使用线程池执行`Runnable`任务。事实上，`ExecutorService`还有一个`Future<T> submit(Callable<T> task)`方法也可以利用线程池执行新线程任务，`T`是任务执行完成返回结果的类型。  
+
+##### 13.1 Callable对象
+可以看到`submit()`方法可以接受一个`Callable`对象，类似于`Runnable`可以在其`run()`方法里写进那些需要在新线程中执行的代码，也可以在`Callable`的`call()`方法中写进那些需要在新线程中执行的代码。唯一不同的是`run()`方法没有返回值，而`call()`方法可以返回泛型类型为`T`的结果对象。
+```java
+//define callable
+Callable<Integer> callable = new Callable<Integer>() {
+    @Override
+    public Integer call() throws Exception {
+        LogUtil.logThreadId("call() is executed in worker thread");
+        return 1;
+    }
+};
+```
+
+##### 13.2 Future
+另外我们可以看到`submit()`返回了一个`Future<T>`类型的对象，我们可以通过返回的这个`Future`对象来在主线程中获取工作线程的执行结果，事实上，通过`Future`可以允许我们做得更多。首先来看看`Future`接口。
+```java
+public interface Future<V> {
+    //取消任务
+    boolean cancel(boolean mayInterruptIfRunning);
+
+    //获取任务是否已经被取消
+    boolean isCancelled();
+
+    //获取任务是否已完成
+    boolean isDone();
+
+    //获取任务执行结果，阻塞等待结果
+    V get() throws InterruptedException, ExecutionException;
+
+	//获取任务执行结果，阻塞等待结果，若超时则get()直接返回null
+    V get(long timeout, TimeUnit unit)
+        throws InterruptedException, ExecutionException, TimeoutException;
+}
+```
+>**Tip:** `get()`方法是一个**阻塞同步方法(Blocked Synchronous Method)**，这意味着在主线程中对该方法的调用会使得主线程阻塞来等待工作线程返回结果，如果工作线程迟迟不返回结果，则主线程会一直被阻塞。
+
+这里举一个简单的例子，该例子将任务使用线程池分配给工作线程去做，然后主线程调用`get()`方法等待工作线程完成并返回执行结果。其中`callable`对象定义见`13.1`节。
+```java
+ExecutorService executor = Executors.newFixedThreadPool(1);
+Future<Integer> result = executor.submit(callable);
+
+try {
+    //main thread is blocked to wait for result from worker thread
+    LogUtil.logThreadId("result = " + result.get());
+} catch (InterruptedException e) {
+    e.printStackTrace();
+} catch (ExecutionException e) {
+    e.printStackTrace();
+}
+
+//this won't be logged until the result is returned from worker thread
+LogUtil.logThreadId("main thread done all works");
+```
+程序运行结果如下
+```
+09-18 22:04:06.355  24500-24513/? I/gyw﹕ TID:8451; call() is executed in worker thread
+09-18 22:04:06.355  24500-24500/? I/gyw﹕ TID:1; result = 1
+09-18 22:04:06.355  24500-24500/? I/gyw﹕ TID:1; main thread done all works
+```

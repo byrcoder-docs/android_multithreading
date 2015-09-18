@@ -953,7 +953,7 @@ public void producer() {
  }
 ```
 接着来看看启动代码
-```
+```java
 ExecutorService executor = Executors.newFixedThreadPool(2);
 
 for (int i = 0; i < 1; ++i) { //add one producer thread
@@ -1052,14 +1052,14 @@ executor.shutdown();
 
 ##### 10.4 假唤醒问题
 如果将10.3节的生产者和消费者代码中的
-```
+```java
 while (queue.size() == 0) { //queue is empty
     Log.d("gyw", "queue is empty, waiting...");
     cond_canConsume.await();
 }
 ``` 
 替换成
-```
+```java
 if (queue.size() == 0) { //queue is empty
     Log.d("gyw", "queue is empty, waiting...");
     cond_canConsume.await();
@@ -1137,3 +1137,214 @@ public void consumer() {
 }
 ```
 启动代码和`10.3节`完全一致，这里就不再累赘列举了。
+
+
+#### 12. 线程特有数据(TSD: Thread-Specific Data)
+在上面很多章节中都存在多个线程对共享对象的访问，那么究竟哪些数据是可以在线程间共享的，哪些数据又是每个线程所特有的呢？一般来说，**堆区和静态区内存是可以在线程间进行共享的，而栈区内存是属于每个线程所特有的**。以下详述几种常见情形。
+##### 12.1 静态成员变量在不同实例化对象间是线程共享的，而非静态变量在不同实例化对象间是线程特有的
+这是由静态成员变量属于类，而非静态成员变量属于对象这一基本特性所决定的。事实上，即使在同一个线程中，情形也是完全一样的，因此这种情形和线程关系并不是很大，唯一需要注意的是对共享变量的多线程并发修改是需要加锁的，下同。
+```java
+public class Foo {
+    private static volatile int sharedInteger = 0; //data shared among different threads
+    private int notSharedInteger = 0; //thread specific data
+
+    public synchronized void increase() {
+        sharedInteger++;
+        notSharedInteger++;
+    }
+
+    public void print() {
+        Log.d("gyw", "sharedInteger = " + sharedInteger +
+                     "; notSharedInteger = " + notSharedInteger);
+    }
+}
+```
+
+```java
+final Foo foo1 = new Foo();
+final Foo foo2 = new Foo();
+
+Thread thread1 = new Thread(new Runnable() {
+ @Override
+ public void run() {
+     foo1.increase();
+ }
+});
+
+Thread thread2 = new Thread(new Runnable() {
+ @Override
+ public void run() {
+     foo2.increase();
+ }
+});
+
+thread1.start();
+thread2.start();
+
+
+try {
+	thread1.join();
+	thread2.join();
+} catch (InterruptedException e) {
+	e.printStackTrace();
+}
+
+//now thread1 and thread2 finished running
+foo1.print();
+foo2.print();
+```
+程序执行结果如下
+```
+09-18 12:17:51.155  15895-15895/? D/gyw﹕ sharedInteger = 2; notSharedInteger = 1
+09-18 12:17:51.155  15895-15895/? D/gyw﹕ sharedInteger = 2; notSharedInteger = 1
+```
+
+##### 12.2 非静态成员变量对同一个实例化对象是线程共享的
+非静态成员变量虽然在不同实例化对象是拥有自己的一份拷贝，然而对于同一个实例对象来说(譬如函数间)，它是线程共享的。
+```java
+public class Foo {
+    private volatile int sharedInteger = 0; //data shared among different threads
+
+    public synchronized void increase() {
+        sharedInteger++;
+    }
+
+    public void print() {
+        Log.d("gyw", "sharedInteger = " + sharedInteger);
+    }
+}
+```
+
+```java
+final Foo foo = new Foo();
+
+ Thread thread1 = new Thread(new Runnable() {
+     @Override
+     public void run() {
+         foo.increase();
+     }
+ });
+
+ Thread thread2 = new Thread(new Runnable() {
+     @Override
+     public void run() {
+         foo.increase();
+     }
+ });
+
+ thread1.start();
+ thread2.start();
+
+
+ try {
+     thread1.join();
+     thread2.join();
+ } catch (InterruptedException e) {
+     e.printStackTrace();
+ }
+
+ //now thread1 and thread2 finished running
+ foo.print();
+```
+
+程序执行结果如下
+```
+09-18 12:26:18.905  16071-16071/? D/gyw﹕ sharedInteger = 2
+```
+
+##### 12.3 局部变量是线程特有的
+局部变量位于栈区，因此是线程特有的。
+```java
+public class Foo {
+
+    public synchronized void increase() {
+        int localVariable = 0;
+        localVariable++;
+        Log.d("gyw", "localVariable = " + localVariable);
+    }
+
+}
+```
+
+```java
+final Foo foo = new Foo();
+
+Thread thread1 = new Thread(new Runnable() {
+    @Override
+    public void run() {
+        foo.increase();
+    }
+});
+
+Thread thread2 = new Thread(new Runnable() {
+    @Override
+    public void run() {
+        foo.increase();
+    }
+});
+
+thread1.start();
+thread2.start();
+```
+运行结果如下：
+```
+09-18 12:36:27.295  16281-16294/? D/gyw﹕ localVariable = 1
+09-18 12:36:27.295  16281-16295/? D/gyw﹕ localVariable = 1
+```
+
+##### 12.4 ThreadLocal对象
+`12.1节`说到静态成员变量在不同实例化对象间是线程共享的(当然对同一个实例化对象更是线程共享了)，`12.1节`非静态成员变量对同一个实例化对象是线程共享的。事实上使用`ThreadLocal`就可以将这些共享的成员变量变成线程特有的(也成为线程私有的)。`ThreadLocal`提供以下常见方法：
+```
+public T get();  //获取当前线程的ThreadLocal绑定值
+public void set(T value); //设置当前线程的ThreadLocal绑定值
+public void remove(); //删除当前线程ThreadLocal绑定的值
+protected T initialValue() //可以通过子类继承来初始化ThreadLocal变量值
+```
+
+以下举一个使用`ThreadLocal`的例子，通过这个例子就可以体会`ThreadLocal`如何将共享的成员变量线程特有化。
+```java
+public class Foo {
+    private static ThreadLocal<Integer> threadLocalInteger = new ThreadLocal<Integer>() {
+        @Override
+        protected Integer initialValue() {
+            return Integer.valueOf(0);
+        }
+    };
+
+    public synchronized void increase() {
+        threadLocalInteger.set(threadLocalInteger.get() + 1);
+        Log.d("gyw", "threadLocalInteger = " + threadLocalInteger.get());
+    }
+
+}
+```
+
+```java
+final Foo foo = new Foo();
+
+Thread thread1 = new Thread(new Runnable() {
+    @Override
+    public void run() {
+        foo.increase();
+    }
+});
+
+Thread thread2 = new Thread(new Runnable() {
+    @Override
+    public void run() {
+        foo.increase();
+    }
+});
+
+thread1.start();
+thread2.start();
+```
+运行结果如下
+```
+09-18 21:35:39.695  24036-24049/? D/gyw﹕ threadLocalInteger = 1
+09-18 21:35:39.695  24036-24050/? D/gyw﹕ threadLocalInteger = 1
+```
+运行结果清楚地表示出，尽管`threadLocalInteger`是一个静态变量，然而由于它是一个`ThreadLocal对象`，因而实现了线程特有化而成为线程特有数据。
+
+>**Resource:** 关于`ThreadLocal`更多的知识，可以访问以下网址：
+[http://qifuguang.me/2015/09/02/[Java%E5%B9%B6%E5%8F%91%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%B8%83]%E8%A7%A3%E5%AF%86ThreadLocal/](http://qifuguang.me/2015/09/02/[Java%E5%B9%B6%E5%8F%91%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%B8%83]%E8%A7%A3%E5%AF%86ThreadLocal/)

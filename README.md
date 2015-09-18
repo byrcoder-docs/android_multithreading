@@ -197,6 +197,10 @@ synchronized (myThread.object) {
 
 >**Warning:** 通过某个对象使用`wait()`或者`notify()`时，必须给该对象加锁，否则将会抛出异常。
 
+##### 1.6 线程状态转换模型图
+本节最后以一个较详细的线程状态转换模型图来做结尾，以加深对线程状态及状态之间转移关系的理解。
+
+![](https://lh3.googleusercontent.com/--CAG2wf6fIw/Vft8ooslvKI/AAAAAAAAA9k/JKP37-9myyw/s720-Ic42/061046391107893.jpg)
 
 #### 2. 线程池
 创建和销毁线程本身是一个耗时耗资源的操作，持有过多线程本身也需要消耗资源，因此应该尽可能避免创建过多的线程。一个方法是使用线程池来复用已创建的线程。Java的`ThreadPoolExecutor`类可以帮助我们创建线程池并利用线程池来执行多线程任务。

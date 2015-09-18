@@ -4,13 +4,14 @@ Android为了保证系统对用户保持高响应性，更是强制规定了在A
 >**Tip:** Android甚至都不允许在主线程中进行网络操作，当然这是可以理解的，因为网络操作的耗时往往是无法预期的，这取决于网络状况。
 
 #### 1. 线程基本操作
-这里介绍仅介绍几个最常用的线程基本操作，包括创建线程、中断线程
+这里介绍几个最常用的线程基本操作，包括创建线程、中断线程、休眠线程、`join()`、阻塞/唤醒线程等方法。  
+##### 1.1 创建线程
 在Java/Android中显式创建线程通常有两种方式:  
 1. 继承Thread类  
 2. 实现Runnable接口  
 
 第二种方式比第一种方式要更加优雅。对于Android中隐式创建线程的方法，譬如`AyncTask`类，将在后面章节做讲解。下面展示分别用两种方式显式创建线程的例子。
-##### 1.1 继承Thread类
+##### 继承Thread类
 ```java
 public class MyThread extends Thread {
     @Override
@@ -25,7 +26,7 @@ public class MyThread extends Thread {
 new MyThread().start();
 ```
 
-##### 1.2 实现Runnable接口
+##### 实现Runnable接口
 ```java
 public class MyRunnable implements Runnable {
     @Override
@@ -48,6 +49,155 @@ new Thread(new Runnable() {
 }).start();
 ```
 
+##### 1.2 中断线程
+可以通过对指定线程调用`interrupt()`的方法来试图中断线程。
+```
+MyThread thread = new MyThread();
+thread.interrupt();
+```
+调用`interrupt()`方法通常并不能使得正在运行中的线程停下来，但`interrupt()`方法可以使得处于阻塞的线程抛出`InterruptedException`异常进而终止。
+
+>**Tip:** `interrupt()`仅仅是通过优雅的方式试图中断线程，正如前文说到，通常情况下`interrupt()`方法并不能使得正在运行的线程停下来。当然，**请不要调用`stop()`或者`destroy()`方法粗鲁地终止线程**，这些方法是废弃的方法，会造成对象状态不一致等诸多问题。
+
+如果确实需要终止线程的运行，可以增加一个`shouldStop`属性通过循环判断语句来达到终止线程运行的目的。以下给出一个例子。
+```java
+public class MyThread extends Thread {
+    private volatile boolean shouldStop = false;
+    @Override
+    public void run() {
+        super.run();
+        Log.d("gyw", "worker thread started");
+        int i = 0;
+        while (!shouldStop) {
+            LogUtil.logThreadId("i = " + i);
+            i++;
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        Log.d("gyw", "worker thread finished");
+    }
+
+    public void setStop() {
+        shouldStop = true;
+    }
+}
+```
+
+```java
+MyThread myThread = new MyThread();
+myThread.start();
+
+try {
+    Thread.sleep(500);
+} catch (InterruptedException e) {
+    e.printStackTrace();
+} finally {
+    myThread.setStop();
+}
+```
+代码中让主线程在启动`myThread`工作线程后就进入睡眠状态500ms，醒来后就通过`setStop()`方法试图终端工作线程的工作，而工作线程的`while`循环大约每100ms会执行一次，这样大概会执行5次左右后工作线程终止，`log日志`会打印大约5次左右后结束。事实上运行结果与我们预期完全相符。
+```
+09-18 09:14:14.986  11955-11969/? D/gyw﹕ worker thread started
+09-18 09:14:14.986  11955-11969/? I/gyw﹕ TID:8109; i = 0
+09-18 09:14:15.086  11955-11969/? I/gyw﹕ TID:8109; i = 1
+09-18 09:14:15.186  11955-11969/? I/gyw﹕ TID:8109; i = 2
+09-18 09:14:15.286  11955-11969/? I/gyw﹕ TID:8109; i = 3
+09-18 09:14:15.386  11955-11969/? I/gyw﹕ TID:8109; i = 4
+09-18 09:14:15.486  11955-11969/? D/gyw﹕ worker thread finished
+```
+
+##### 1.3 sleep和yield方法
+`sleep()`的调用可以使线程进入睡眠状态，会交出CPU给别的线程去使用。在`1.2节`的例子中已经提前使用了`sleep()`方法。值得注意的是，调用`sleep()`方法并不会释放已经持有的锁。  
+`yield()`类似于`sleep()`，也会交出CPU给别的线程并且也不会释放已经持有的锁，不同的是`yield()`方法并不指出线程应该睡眠多长时间，仅仅是让出CPU以使得同一优先级的线程有机会获得CPU。
+
+>**Tip:** 关于什么是锁？锁在多线程中有什么具体用途用法？如果尚且不清楚或者不理解，没有关系，请继续往后阅读，后面会详细叙述。
+
+##### 1.4 join方法
+当在主线程中创建工作线程后，可以在主线程中调用`join()`方法来等待工作线程完成，然后再执行接下来的代码。以下是一个简单的例子。
+```java
+public class MyThread extends Thread {
+    @Override
+    public void run() {
+        super.run();
+        LogUtil.logThreadId(" worker thread");
+    }
+}
+```
+
+```java
+MyThread myThread = new MyThread();
+myThread.start();
+
+try {
+    myThread.join();
+} catch (InterruptedException e) {
+    e.printStackTrace();
+}
+```
+运行结果如下：
+```
+09-18 09:36:40.926  12322-12335/? I/gyw﹕ TID:8115;  worker thread
+09-18 09:36:40.926  12322-12322/? I/gyw﹕ TID:1;  main thread
+```
+可以看到，主线程等待工作线程执行完以后，才继续执行之后的代码。
+
+##### 1.5 wait/notify方法
+`wait()`方法使得调用的线程被阻塞，并监视调用该方法的`Object`是否有`notify`消息，如果有`notify`消息，则唤醒被阻塞的线程。  
+`notify()`会唤醒通过同一个`Object`来调用`wait()`而被阻塞的线程。
+
+>**Tip:** `notify()`和`wait()`必须作用在同一个对象上才能配合起来阻塞/唤醒某一个线程。
+
+`notify()`和`notifyAll()`的区别在于前者唤醒第一个被阻塞的线程；而后者唤醒所有线程，拥有最高优先级的线程将获得CPU。  
+以下还是通过一个简单的例子来加深对wait/notify方法的理解。
+```java
+public class MyThread extends Thread {
+    public volatile Object object = new Object();
+
+    @Override
+    public void run() {
+        super.run();
+        try {
+            synchronized (object) {
+                object.wait();
+            }
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        LogUtil.logThreadId(" worker thread");
+    }
+}
+```
+
+```java
+MyThread myThread = new MyThread();
+myThread.start();
+
+LogUtil.logThreadId("start worker thread");
+
+try {
+    Thread.sleep(500);
+} catch (InterruptedException e) {
+    e.printStackTrace();
+}
+
+LogUtil.logThreadId("notify worker thread");
+synchronized (myThread.object) {
+    myThread.object.notify();
+}
+```
+运行结果如下：
+```
+09-18 10:19:31.745  13737-13737/? I/gyw﹕ TID:1; start worker thread
+09-18 10:19:32.245  13737-13737/? I/gyw﹕ TID:1; notify worker thread
+09-18 10:19:32.245  13737-13751/? I/gyw﹕ TID:8181;  worker thread
+```
+
+>**Warning:** 通过某个对象使用`wait()`或者`notify()`时，必须给该对象加锁，否则将会抛出异常。
+
+
 #### 2. 线程池
 创建和销毁线程本身是一个耗时耗资源的操作，持有过多线程本身也需要消耗资源，因此应该尽可能避免创建过多的线程。一个方法是使用线程池来复用已创建的线程。Java的`ThreadPoolExecutor`类可以帮助我们创建线程池并利用线程池来执行多线程任务。
 >**Tip:** `ThreadPoolExecutor`继承自`AbstractExecutorService`，而`AbstractExecutorService`实现了`ExecutorService`接口。
@@ -57,13 +207,13 @@ new Thread(new Runnable() {
 ##### 2.1 ThreadPoolExecutor构造函数
 在ThreadPoolExecutor类中提供了多种构造方法用来创建线程池，典型的有：
 ```java
-        public ThreadPoolExecutor(int corePoolSize, int maximumPoolSize,
-                                  long keepAliveTime, TimeUnit unit,
-                                  BlockingQueue<Runnable> workQueue);
+public ThreadPoolExecutor(int corePoolSize, int maximumPoolSize,
+                          long keepAliveTime, TimeUnit unit,
+                          BlockingQueue<Runnable> workQueue);
 ```
 其中`corePoolSize`是指线程池维持的线程数量；`maximumPoolSize`是线程池最大线程数；`keepAliveTime`是线程池闲置线程存活时间；`unit`是这个存活时间的单位；`workQueue`是等待队列。   
 需要指出的是通常超时只意味着销毁那些超出`corePoolSize`数量的线程，当`corePoolSize`与`maximumPoolSize`相等时，`keepAliveTime`通常没有什么意义，设为`0L`即可。   
-`workQueue`典型类型有以下两种：  
+`workQueue`典型类型有以下三种：  
 1. **ArrayBlockingQueue：**基于数组的先进先出队列，此队列创建时必须指定大小；     
 2. **LinkedBlockingQueue：**基于链表的先进先出队列，不需要指定此队列大小；     
 3. **synchronousQueue：**这个队列比较特殊，它不会保存提交的任务，而是将直接新建一个线程来执行新来的任务。     
@@ -924,7 +1074,7 @@ if (queue.size() == 0) { //queue is empty
 1. **ArrayBlockingQueue：** 基于数组实现的一个阻塞队列，在创建ArrayBlockingQueue对象时必须指定容量大小。另外可以指定公平性，即不保证等待时间最长的队列最优先能够访问队列。
 2. **LinkedBlockingQueue：** 基于链表实现的一个阻塞队列，在创建LinkedBlockingQueue对象时如果不指定容量大小，则默认大小为Integer.MAX_VALUE。由于内存是动态分配的，通常情况下无需指定容量大小。
 3. **PriorityBlockingQueue：** 基于堆实现的一个阻塞队列，不同于`ArrayBlockingQueue`和`LinkedBlockingQueue`的先进先出性质，`PriorityBlockingQueue`会按照队列元素优先级顺序出队，每次出队的元素都是优先级最高的元素。无需指定容量大小。
-4. **DelayQueue：** 基于`PriorityBlockingQueue`，`DelayQueue`中的元素只有当其指定的延迟时间到了，才能够从队列中获取到该元素。无需指定容量大小。  
+4. **DelayQueue：** 基于`PriorityBlockingQueue`，`DelayQueue`中的元素只有当其指定的延迟时间到了，才能够从队列中获取到该元素。无需指定容量大小。
 
 >**Tip:** 以上所说的常用阻塞队列中，前两种是有界队列，后两种是无界队列。
 

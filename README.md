@@ -1415,3 +1415,175 @@ LogUtil.logThreadId("main thread done all works");
 09-18 22:04:06.355  24500-24500/? I/gyw﹕ TID:1; result = 1
 09-18 22:04:06.355  24500-24500/? I/gyw﹕ TID:1; main thread done all works
 ```
+
+##### 13.3 利用多线程计算Fibonacci数列
+先来看下单线程计算Fibonacci数列的情形，最简单的版本是可以利用递归去实现，从算法角度来讲就是**分治法(Divide and Conquer)**。由于计算数列算法本身非常简单，直接给出递归实现的代码。
+```java
+public long computeRecursively(int n) {
+    if (n > 1) {
+        return computeRecursively(n-1) + computeRecursively(n-2);
+    }
+    return n;
+}
+```
+事实上容易知道上面计算方法的时间复杂度是**指数级**的，这意味着当n较大的时候，计算时间将非常恐怖。为了直观对比各算法的性能，使用下面一小段代码才测量cpu执行时间并在驱动代码中将n设置为30。
+```java
+long startTime = Debug.threadCpuTimeNanos();
+long result = computeRecursively(30);
+long duration_ns = Debug.threadCpuTimeNanos() - startTime;
+long duration_ms = duration_ns / 1000000;
+Log.d("gyw", "result = " + result + "; duration = " + duration_ns + "ns = " + duration_ms + "ms");
+```
+在作者的Android机器上，运行结果如下：
+```
+09-19 08:03:34.995  32488-32488/? D/gyw﹕ result = 832040; duration = 357233029ns = 357ms
+```
+可以看到当计算第30项值的时候，机器就已经显得步履维艰了。考虑一个不那么困难的改进方案，在递归过程中计算`第n项`数列值的时候，事实上递归调用了计算`第n-1项`和`第n-2项`的值；而譬如计算`第n-1项`值时又会递归计算`第n-2项`值，这造成了大量的重复计算，事实上前面算法效率低下的症结就是在这个地方，cpu将计算时间几乎完全耗费在了一次又一次重复计算递归项上了。一个简单的改进就是在计算中将每次计算的值记录下来，在需要的时候取用，如果存取是高效的，那么必然效率会有质的跃升。这样改进后的算法就是**动态规划(Dynamic programming)**了，具体地说是使用了**备忘录(memo)**技术的动态规划算法。
+
+>**Tip:** 也可以使用从第一项至最后一项**迭代**计算技术来实现动态规划算法，而且效率通常会更高一点。这里是为了算法横向改进对比的方便采用**备忘录**技术。当然两种技术细节对**时间复杂度的阶(Order)**没有任何影响，只微弱影响时间复杂度的常数因子。
+
+下面就利用Android中的`SparseArray`来作为缓存数组实现**备忘录**技术，代码如下：
+```java
+    private SparseArray<Long> cache = new SparseArray<>();
+
+    public long computeRecursively(int n) {
+        if (n > 1) {
+            Long fac1 = cache.get(n-1);
+            Long fac2 = cache.get(n-2);
+            
+            if (fac1 == null) {
+                fac1 = computeRecursively(n-1);
+                cache.put(n-1, fac1);
+            }
+            
+            if (fac2 == null) {
+                fac2 = computeRecursively(n-2);
+                cache.put(n-2, fac2);
+            }
+
+            return fac1 + fac2;
+        }
+        return n;
+    }
+```
+
+>**Tip:** 也可以使用Java中的`HashMap`来作为缓存，这样通用性会更好一点，Android的`SparseArray`相对效率更高一些。
+
+同样条件下让我们来看看Android机器上的运行结果吧。
+```
+09-19 08:13:26.205  32678-32678/? D/gyw﹕ result = 832040; duration = 297742ns = 0ms
+```
+对我们设定的条件下，执行效率提高了**1200倍**，**哇！令人印象深刻啊！**。从算法时间复杂度上来说，第二种算法是**线性**的，即**O(n)**，难怪会如此高效。  
+那么是否可以进一步榨干cpu的运算性能呢？对于多核cpu，也许我们可以使用多线程来进一步提高性能。当然这里说的是也许，如果我们可以将并行的计算置于不同的cpu核心上去运行，那也许有可能我们就提高了整体的性能。在试图实现我们这个想法，先把刚才那个令人印象深刻的迭代算法做些许改进，之所以需要改进是因为当计算数列的项n太大时(譬如`n = 100`)，使用`Long`来存储会出现溢出而无法得到正确的结果，这里简单使用`BigInteger`来替代`Long`。改进后的代码如下：
+```java
+public BigInteger computeRecursively(int n) {
+    if (n > 1) {
+        BigInteger fac1 = cache.get(n-1);
+        BigInteger fac2 = cache.get(n-2);
+        
+        if (fac1 == null) {
+            fac1 = computeRecursively(n-1);
+            cache.put(n-1, fac1);
+        }
+        
+        if (fac2 == null) {
+            fac2 = computeRecursively(n-2);
+            cache.put(n-2, fac2);
+        }
+        
+        return fac1.add(fac2);
+    }
+    return (n == 0) ? BigInteger.ZERO : BigInteger.ONE;
+}
+```
+一个可能的利用多线程来改进效率来自于这样的事实，计算`第n项`数列值的时候，事实上需要计算`第n-1项`和`第n-2项`的值，可以将`第n-1项`和`第n-2项`放到不同的线程来进行计算(当然只有放到不同核心才是真正的多核并发)。
+
+>**Tip:** 将并发计算分配到多线程并不一定意味着cpu会将其调度到不同核心上去进行计算，这取决于操作系统的调度算法。一个好的消息就是对于Android来说，这样的核心调度算法是优化的，而且随着版本提高还在不断优化中，当然操作系统也需要照顾到别的程序的运行。同一时间并不只存在你所写的那一个程序在执行。
+
+基于这样的想法，可以写出如下的多线程计算Fibonacci数列的代码
+```java
+private ConcurrentHashMap<Integer, BigInteger> cache = new ConcurrentHashMap<Integer, BigInteger>();
+
+public BigInteger computeRecursively(int n) {
+   //The same as before
+}
+
+private static final int CPU_NUM = Runtime.getRuntime().availableProcessors();
+private ExecutorService executorService = Executors.newFixedThreadPool(CPU_NUM + 1);
+
+public BigInteger computeRecursivelyWithTwoThreads(final int n) {
+    Callable<BigInteger> callable = new Callable<BigInteger>() {
+        @Override
+        public BigInteger call() throws Exception {
+            return computeRecursively(n-1);
+        }
+    };
+    
+    Future<BigInteger> fac1 = executorService.submit(callable); //submit first task ASAP
+    
+    callable = new Callable<BigInteger>() {
+        @Override
+        public BigInteger call() throws Exception {
+            return computeRecursively(n-2);
+        }
+    };
+    
+    Future<BigInteger> fac2 = executorService.submit(callable); //submit second task
+    
+    try {
+        //combine results
+        return fac1.get().add(fac2.get());
+    } catch (InterruptedException | ExecutionException e) {
+        e.printStackTrace();
+        return BigInteger.valueOf(-1); //if fails
+    }
+}
+```
+由于多个线程会对`cache`值进行访问，因此存在并发访问问题，这里使用`ConcurrentHashMap`来解决`cache`的并发访问问题，使得`cache`是线程安全的。
+
+>**Tip:** 对于多线程，设置多少个线程数合适的问题，这个依赖具体情况。一个指导原则是
+>1. 对CPU密集任务，设置线程数为 **CPU_NUM + 1**；
+>2. 对于I/O密集任务， 设置线程数为 **2 * CPU_NUM**。
+
+到了这里，似乎一切都很完美，然而还差一个问题，使用多线程写出来的程序真的效率比单线程高很多么？不得不泼一盆凉水，尽管代码变复杂了，愿望也是美好的，然而事实往往不尽如人意。在两核cpu上执行效率非但往往达不到单线程单核cpu的2倍，**很多情况下比单线程效率还要低下**！这一方面由于线程创建、调度、销毁需要费事费力，cpu调度算法也要消耗计算资源，更因为很多时候由于并发、同步等问题使得线程不得不阻塞等待，这些都导致了多线程效率的低下。
+
+>**Tip:** 这样的事实再次告诫我们，只有在需要优化的情况下才考虑对效率的优化，并且**优化的首要步骤是改进算法而不是改进实现**，通常项目进度、异常处理、代码的可维护性是更重要的因子，**优化需要抱着务实的态度**。
+
+当然我们也不应该过分悲观，很多时候使用多线程确实可以提高程序的效率，实践表明，那些可以并发执行的任务，即**不需要大量同步需求的并行执行任务是适合多线程的**，而且通常来说由于各种开销缘故，**只有当问题规模较大的时候才适合进行多线程**，当问题规模小的时候往往应该调用单线程版本，后者的考量类似于快速排序在规模较小时候应该直接调用简单排序算法来实现。  
+最后还是让我们来看一下我们使用多线程改进的算法与单线程的算法在实际运行中的效率对比吧。驱动和测量时间的代码如下：
+```java
+final int N = 30; //we test 30, 128 and 400
+
+BigInteger result = BigInteger.valueOf(-2);
+
+long startTime = Debug.threadCpuTimeNanos();
+for (int i = 0; i < 50; ++i) {
+   result = computeRecursively(N);
+}
+long duration_ns = Debug.threadCpuTimeNanos() - startTime;
+long duration_ms = duration_ns / 1000000;
+Log.d("gyw", "result = " + result + " computeRecursively; duration = " + duration_ns + "ns = " + duration_ms + "ms");
+
+startTime = Debug.threadCpuTimeNanos();
+for (int i = 0; i < 50; ++i) {
+    result = computeRecursivelyWithTwoThreads(N);
+}
+duration_ns = Debug.threadCpuTimeNanos() - startTime;
+duration_ms = duration_ns / 1000000;
+Log.d("gyw", "result = " + result + " computeRecursivelyWithTwoThreads; duration = " + duration_ns + "ns = " + duration_ms + "ms");
+```
+我们改变问题规模N，测试当N分别为30，128和400情况下，程序在机器上执行的结果(`CPU_NUM = 4`)。
+```
+//N = 30
+09-19 09:58:25.205    4381-4381/? D/gyw﹕ result = 832040 computeRecursively; duration = 1874932ns = 1ms
+09-19 09:58:25.215    4381-4381/? D/gyw﹕ result = 832040 computeRecursivelyWithTwoThreads; duration = 5444422ns = 5ms
+
+//N = 128
+09-19 10:00:46.655    4473-4473/? D/gyw﹕ result = 251728825683549488150424261 computeRecursively; duration = 5750731ns = 5ms
+09-19 10:00:46.665    4473-4473/? D/gyw﹕ result = 251728825683549488150424261 computeRecursivelyWithTwoThreads; duration = 4643587ns = 4ms
+
+//N = 400
+09-19 10:01:02.375    4539-4539/? D/gyw﹕ result = 176023680645013966468226945392411250770384383304492191886725992896575345044216019675 computeRecursively; duration = 17544497ns = 17ms
+09-19 10:01:02.385    4539-4539/? D/gyw﹕ result = 176023680645013966468226945392411250770384383304492191886725992896575345044216019675 computeRecursivelyWithTwoThreads; duration = 5307339ns = 5ms
+```
+从测试的结果中我们可以看出，当问题规模较小的时候，单线程的执行效率更高；当问题规模趋于增大的时候，多线程的优势逐渐显现，知道`N = 400`的时候，多线程执行效率高出了单线程的3倍还多。

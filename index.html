@@ -1,0 +1,2016 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="UTF-8">
+    <title>Android multithreading by byrcoder-docs</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" type="text/css" href="stylesheets/normalize.css" media="screen">
+    <link href='https://fonts.googleapis.com/css?family=Open+Sans:400,700' rel='stylesheet' type='text/css'>
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen">
+    <link rel="stylesheet" type="text/css" href="stylesheets/github-light.css" media="screen">
+  </head>
+  <body>
+    <section class="page-header">
+      <h1 class="project-name">Android multithreading</h1>
+      <h2 class="project-tagline">doc about android/java multithreading</h2>
+      <a href="https://github.com/byrcoder-docs/android_multithreading" class="btn">View on GitHub</a>
+      <a href="https://github.com/byrcoder-docs/android_multithreading/zipball/master" class="btn">Download .zip</a>
+      <a href="https://github.com/byrcoder-docs/android_multithreading/tarball/master" class="btn">Download .tar.gz</a>
+    </section>
+
+    <section class="main-content">
+      <h2>
+<a id="android多线程" class="anchor" href="#android%E5%A4%9A%E7%BA%BF%E7%A8%8B" aria-hidden="true"><span class="octicon octicon-link"></span></a>Android多线程</h2>
+
+<p>使用多线程的好处通常包括提高了代码的效率，充分利用计算资源，减少系统响应时间等。譬如可以将问题划分为子问题并将子问题交给不同的线程进行处理，如果这些线程需要共享一些争用资源，那么通常对这些争用资源的访问(读或者写操作)是需要进行<strong>互斥操作</strong>的（解决并发问题）；如果这些线程在某些时候需要以一定次序进行，那么则需要进行<strong>同步操作</strong>（解决协作问题）。互斥操作和同步操作一般都称为<strong>多线程同步问题</strong>；另外当工作线程工作结束后，主线程可能还想知道工作线程的执行结果，不同的工作线程之间可能也希望进行<strong>通信</strong>(解决通信问题)。<br>
+Android为了保证系统对用户保持高响应性，更是强制规定了在<code>Activity</code>的主线程中的操作不能超过5秒，<code>Service</code>的主线程中的操作不能超过10秒，否则会抛出<code>ANR异常</code>。这使得我们必须要将耗时操作转移到工作线程中去。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> Android甚至都不允许在主线程中进行网络操作，当然这是可以理解的，因为网络操作的耗时往往是无法预期的，这取决于网络状况。</p>
+</blockquote>
+
+<h3>
+<a id="1-线程基本操作" class="anchor" href="#1-%E7%BA%BF%E7%A8%8B%E5%9F%BA%E6%9C%AC%E6%93%8D%E4%BD%9C" aria-hidden="true"><span class="octicon octicon-link"></span></a>1. 线程基本操作</h3>
+
+<p>这里介绍几个最常用的线程基本操作，包括创建线程、中断线程、休眠线程、<code>join()</code>、阻塞/唤醒线程等方法。  </p>
+
+<h4>
+<a id="11-创建线程" class="anchor" href="#11-%E5%88%9B%E5%BB%BA%E7%BA%BF%E7%A8%8B" aria-hidden="true"><span class="octicon octicon-link"></span></a>1.1 创建线程</h4>
+
+<p>在Java/Android中显式创建线程通常有两种方式:<br>
+1. 继承Thread类<br>
+2. 实现Runnable接口  </p>
+
+<p>第二种方式比第一种方式要更加优雅。对于Android中隐式创建线程的方法，譬如<code>AyncTask</code>类，将在后面章节做讲解。下面展示分别用两种方式显式创建线程的例子。</p>
+
+<h5>
+<a id="继承thread类" class="anchor" href="#%E7%BB%A7%E6%89%BFthread%E7%B1%BB" aria-hidden="true"><span class="octicon octicon-link"></span></a>继承Thread类</h5>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MyThread</span> <span class="pl-k">extends</span> <span class="pl-e">Thread</span> {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-v">super</span><span class="pl-k">.</span>run();
+        <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>MyThread::run()<span class="pl-pds">"</span></span>);
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">new</span> <span class="pl-smi">MyThread</span>()<span class="pl-k">.</span>start();</pre></div>
+
+<h5>
+<a id="实现runnable接口" class="anchor" href="#%E5%AE%9E%E7%8E%B0runnable%E6%8E%A5%E5%8F%A3" aria-hidden="true"><span class="octicon octicon-link"></span></a>实现Runnable接口</h5>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MyRunnable</span> <span class="pl-k">implements</span> <span class="pl-e">Runnable</span> {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>MyRunnable::run()<span class="pl-pds">"</span></span>);
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">MyRunnable</span>())<span class="pl-k">.</span>start();</pre></div>
+
+<p>通常也可以使用匿名函数简化代码</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-c">//TODO...</span>
+    }
+})<span class="pl-k">.</span>start();</pre></div>
+
+<h4>
+<a id="12-中断线程" class="anchor" href="#12-%E4%B8%AD%E6%96%AD%E7%BA%BF%E7%A8%8B" aria-hidden="true"><span class="octicon octicon-link"></span></a>1.2 中断线程</h4>
+
+<p>可以通过对指定线程调用<code>interrupt()</code>的方法来试图中断线程。</p>
+
+<pre><code>MyThread thread = new MyThread();
+thread.interrupt();
+</code></pre>
+
+<p>调用<code>interrupt()</code>方法通常并不能使得正在运行中的线程停下来，但<code>interrupt()</code>方法可以使得处于阻塞的线程抛出<code>InterruptedException</code>异常进而终止。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> <code>interrupt()</code>仅仅是通过优雅的方式试图中断线程，正如前文说到，通常情况下<code>interrupt()</code>方法并不能使得正在运行的线程停下来。当然，<strong>请不要调用<code>stop()</code>或者<code>destroy()</code>方法粗鲁地终止线程</strong>，这些方法是废弃的方法，会造成对象状态不一致等诸多问题。</p>
+</blockquote>
+
+<p>如果确实需要终止线程的运行，可以增加一个<code>shouldStop</code>属性通过循环判断语句来达到终止线程运行的目的。以下给出一个例子。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MyThread</span> <span class="pl-k">extends</span> <span class="pl-e">Thread</span> {
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">boolean</span> shouldStop <span class="pl-k">=</span> <span class="pl-c1">false</span>;
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-v">super</span><span class="pl-k">.</span>run();
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>worker thread started<span class="pl-pds">"</span></span>);
+        <span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>;
+        <span class="pl-k">while</span> (<span class="pl-k">!</span>shouldStop) {
+            <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>i = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> i);
+            i<span class="pl-k">++</span>;
+            <span class="pl-k">try</span> {
+                <span class="pl-smi">Thread</span><span class="pl-k">.</span>sleep(<span class="pl-c1">100</span>);
+            } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+                e<span class="pl-k">.</span>printStackTrace();
+            }
+        }
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>worker thread finished<span class="pl-pds">"</span></span>);
+    }
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">setStop</span>() {
+        shouldStop <span class="pl-k">=</span> <span class="pl-c1">true</span>;
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-smi">MyThread</span> myThread <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">MyThread</span>();
+myThread<span class="pl-k">.</span>start();
+
+<span class="pl-k">try</span> {
+    <span class="pl-smi">Thread</span><span class="pl-k">.</span>sleep(<span class="pl-c1">500</span>);
+} <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+    e<span class="pl-k">.</span>printStackTrace();
+} <span class="pl-k">finally</span> {
+    myThread<span class="pl-k">.</span>setStop();
+}</pre></div>
+
+<p>代码中让主线程在启动<code>myThread</code>工作线程后就进入睡眠状态500ms，醒来后就通过<code>setStop()</code>方法试图终端工作线程的工作，而工作线程的<code>while</code>循环大约每100ms会执行一次，这样大概会执行5次左右后工作线程终止，<code>log日志</code>会打印大约5次左右后结束。事实上运行结果与我们预期完全相符。</p>
+
+<pre><code>09-18 09:14:14.986  11955-11969/? D/gyw﹕ worker thread started
+09-18 09:14:14.986  11955-11969/? I/gyw﹕ TID:8109; i = 0
+09-18 09:14:15.086  11955-11969/? I/gyw﹕ TID:8109; i = 1
+09-18 09:14:15.186  11955-11969/? I/gyw﹕ TID:8109; i = 2
+09-18 09:14:15.286  11955-11969/? I/gyw﹕ TID:8109; i = 3
+09-18 09:14:15.386  11955-11969/? I/gyw﹕ TID:8109; i = 4
+09-18 09:14:15.486  11955-11969/? D/gyw﹕ worker thread finished
+</code></pre>
+
+<h4>
+<a id="13-sleep和yield方法" class="anchor" href="#13-sleep%E5%92%8Cyield%E6%96%B9%E6%B3%95" aria-hidden="true"><span class="octicon octicon-link"></span></a>1.3 sleep和yield方法</h4>
+
+<p><code>sleep()</code>的调用可以使线程进入睡眠状态，会交出CPU给别的线程去使用。在<code>1.2节</code>的例子中已经提前使用了<code>sleep()</code>方法。值得注意的是，调用<code>sleep()</code>方法并不会释放已经持有的锁。<br>
+<code>yield()</code>类似于<code>sleep()</code>，也会交出CPU给别的线程并且也不会释放已经持有的锁，不同的是<code>yield()</code>方法并不指出线程应该睡眠多长时间，仅仅是让出CPU以使得同一优先级的线程有机会获得CPU。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> 关于什么是锁？锁在多线程中有什么具体用途用法？如果尚且不清楚或者不理解，没有关系，请继续往后阅读，后面会详细叙述。</p>
+</blockquote>
+
+<h4>
+<a id="14-join方法" class="anchor" href="#14-join%E6%96%B9%E6%B3%95" aria-hidden="true"><span class="octicon octicon-link"></span></a>1.4 join方法</h4>
+
+<p>当在主线程中创建工作线程后，可以在主线程中调用<code>join()</code>方法来等待工作线程完成，然后再执行接下来的代码。以下是一个简单的例子。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MyThread</span> <span class="pl-k">extends</span> <span class="pl-e">Thread</span> {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-v">super</span><span class="pl-k">.</span>run();
+        <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span> worker thread<span class="pl-pds">"</span></span>);
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-smi">MyThread</span> myThread <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">MyThread</span>();
+myThread<span class="pl-k">.</span>start();
+
+<span class="pl-k">try</span> {
+    myThread<span class="pl-k">.</span>join();
+} <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+    e<span class="pl-k">.</span>printStackTrace();
+}</pre></div>
+
+<p>运行结果如下：</p>
+
+<pre><code>09-18 09:36:40.926  12322-12335/? I/gyw﹕ TID:8115;  worker thread
+09-18 09:36:40.926  12322-12322/? I/gyw﹕ TID:1;  main thread
+</code></pre>
+
+<p>可以看到，主线程等待工作线程执行完以后，才继续执行之后的代码。</p>
+
+<h4>
+<a id="15-waitnotify方法" class="anchor" href="#15-waitnotify%E6%96%B9%E6%B3%95" aria-hidden="true"><span class="octicon octicon-link"></span></a>1.5 wait/notify方法</h4>
+
+<p><code>wait()</code>方法使得调用的线程被阻塞，并监视调用该方法的<code>Object</code>是否有<code>notify</code>消息，如果有<code>notify</code>消息，则唤醒被阻塞的线程。<br>
+<code>notify()</code>会唤醒通过同一个<code>Object</code>来调用<code>wait()</code>而被阻塞的线程。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> <code>notify()</code>和<code>wait()</code>必须作用在同一个对象上才能配合起来阻塞/唤醒某一个线程。</p>
+</blockquote>
+
+<p><code>notify()</code>和<code>notifyAll()</code>的区别在于前者唤醒第一个被阻塞的线程；而后者唤醒所有线程，拥有最高优先级的线程将获得CPU。<br>
+以下还是通过一个简单的例子来加深对wait/notify方法的理解。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MyThread</span> <span class="pl-k">extends</span> <span class="pl-e">Thread</span> {
+    <span class="pl-k">public</span> <span class="pl-k">volatile</span> <span class="pl-smi">Object</span> object <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Object</span>();
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-v">super</span><span class="pl-k">.</span>run();
+        <span class="pl-k">try</span> {
+            <span class="pl-k">synchronized</span> (object) {
+                object<span class="pl-k">.</span>wait();
+            }
+        } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+            e<span class="pl-k">.</span>printStackTrace();
+        }
+        <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span> worker thread<span class="pl-pds">"</span></span>);
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-smi">MyThread</span> myThread <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">MyThread</span>();
+myThread<span class="pl-k">.</span>start();
+
+<span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>start worker thread<span class="pl-pds">"</span></span>);
+
+<span class="pl-k">try</span> {
+    <span class="pl-smi">Thread</span><span class="pl-k">.</span>sleep(<span class="pl-c1">500</span>);
+} <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+    e<span class="pl-k">.</span>printStackTrace();
+}
+
+<span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>notify worker thread<span class="pl-pds">"</span></span>);
+<span class="pl-k">synchronized</span> (myThread<span class="pl-k">.</span>object) {
+    myThread<span class="pl-k">.</span>object<span class="pl-k">.</span>notify();
+}</pre></div>
+
+<p>运行结果如下：</p>
+
+<pre><code>09-18 10:19:31.745  13737-13737/? I/gyw﹕ TID:1; start worker thread
+09-18 10:19:32.245  13737-13737/? I/gyw﹕ TID:1; notify worker thread
+09-18 10:19:32.245  13737-13751/? I/gyw﹕ TID:8181;  worker thread
+</code></pre>
+
+<blockquote>
+<p><strong>Warning:</strong> 通过某个对象使用<code>wait()</code>或者<code>notify()</code>时，必须给该对象加锁，否则将会抛出异常。</p>
+</blockquote>
+
+<h4>
+<a id="16-线程状态转换模型图" class="anchor" href="#16-%E7%BA%BF%E7%A8%8B%E7%8A%B6%E6%80%81%E8%BD%AC%E6%8D%A2%E6%A8%A1%E5%9E%8B%E5%9B%BE" aria-hidden="true"><span class="octicon octicon-link"></span></a>1.6 线程状态转换模型图</h4>
+
+<p>本节最后以一个较详细的线程状态转换模型图来做结尾，以加深对线程状态及状态之间转移关系的理解。</p>
+
+<p><img src="https://lh3.googleusercontent.com/--CAG2wf6fIw/Vft8ooslvKI/AAAAAAAAA9k/JKP37-9myyw/s720-Ic42/061046391107893.jpg" alt=""></p>
+
+<h3>
+<a id="2-线程池" class="anchor" href="#2-%E7%BA%BF%E7%A8%8B%E6%B1%A0" aria-hidden="true"><span class="octicon octicon-link"></span></a>2. 线程池</h3>
+
+<p>创建和销毁线程本身是一个耗时耗资源的操作，持有过多线程本身也需要消耗资源，因此应该尽可能避免创建过多的线程。一个方法是使用线程池来复用已创建的线程。Java的<code>ThreadPoolExecutor</code>类可以帮助我们创建线程池并利用线程池来执行多线程任务。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> <code>ThreadPoolExecutor</code>继承自<code>AbstractExecutorService</code>，而<code>AbstractExecutorService</code>实现了<code>ExecutorService</code>接口。</p>
+</blockquote>
+
+<p>先来看看<code>ThreadPoolExecutor</code>这个核心类。</p>
+
+<h4>
+<a id="21-threadpoolexecutor构造函数" class="anchor" href="#21-threadpoolexecutor%E6%9E%84%E9%80%A0%E5%87%BD%E6%95%B0" aria-hidden="true"><span class="octicon octicon-link"></span></a>2.1 ThreadPoolExecutor构造函数</h4>
+
+<p>在ThreadPoolExecutor类中提供了多种构造方法用来创建线程池，典型的有：</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> ThreadPoolExecutor(<span class="pl-k">int</span> corePoolSize, <span class="pl-k">int</span> maximumPoolSize,
+                          <span class="pl-k">long</span> keepAliveTime, <span class="pl-smi">TimeUnit</span> unit,
+                          <span class="pl-k">BlockingQueue&lt;<span class="pl-smi">Runnable</span>&gt;</span> workQueue);</pre></div>
+
+<p>其中<code>corePoolSize</code>是指线程池维持的线程数量；<code>maximumPoolSize</code>是线程池最大线程数；<code>keepAliveTime</code>是线程池闲置线程存活时间；<code>unit</code>是这个存活时间的单位；<code>workQueue</code>是等待队列。<br>
+需要指出的是通常超时只意味着销毁那些超出<code>corePoolSize</code>数量的线程，当<code>corePoolSize</code>与<code>maximumPoolSize</code>相等时，<code>keepAliveTime</code>通常没有什么意义，设为<code>0L</code>即可。<br>
+<code>workQueue</code>典型类型有以下三种：<br>
+1. <strong>ArrayBlockingQueue：</strong>基于数组的先进先出队列，此队列创建时必须指定大小；<br>
+2. <strong>LinkedBlockingQueue：</strong>基于链表的先进先出队列，不需要指定此队列大小；<br>
+3. <strong>synchronousQueue：</strong>这个队列比较特殊，它不会保存提交的任务，而是将直接新建一个线程来执行新来的任务。     </p>
+
+<blockquote>
+<p><strong>Tip:</strong> 当ArrayBlockingQueue满时，再有新的任务到来，会抛出异常。</p>
+</blockquote>
+
+<h4>
+<a id="22-threadpoolexecutor几个重要方法" class="anchor" href="#22-threadpoolexecutor%E5%87%A0%E4%B8%AA%E9%87%8D%E8%A6%81%E6%96%B9%E6%B3%95" aria-hidden="true"><span class="octicon octicon-link"></span></a>2.2 ThreadPoolExecutor几个重要方法</h4>
+
+<div class="highlight highlight-source-java"><pre>execute()
+shutdown()
+shutdownNow()</pre></div>
+
+<p><code>execute()</code>接受一个<code>Runnable</code>对象，用来向线程池提交一个任务，交由线程池去执行。<br>
+<code>shutdown()</code>和<code>shutdownNow()</code>都是用来关闭线程池的。他们的区别在于<code>shutdown()</code>不会立刻关闭线程池，而等到所有的等待队列的任务执行完才终止，但不会接受新的任务了；<code>shutdownNow()</code>会立刻关闭线程池，试图打断正在执行的任务，清空等待队列，返回尚未执行的任务。</p>
+
+<h4>
+<a id="23-使用threadpoolexecutor的例子" class="anchor" href="#23-%E4%BD%BF%E7%94%A8threadpoolexecutor%E7%9A%84%E4%BE%8B%E5%AD%90" aria-hidden="true"><span class="octicon octicon-link"></span></a>2.3 使用ThreadPoolExecutor的例子</h4>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MyRunnable</span> <span class="pl-k">implements</span> <span class="pl-e">Runnable</span> {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>MyRunnable::run()<span class="pl-pds">"</span></span>);
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-smi">ThreadPoolExecutor</span> executor <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">ThreadPoolExecutor</span>(<span class="pl-c1">5</span>, <span class="pl-c1">5</span>, <span class="pl-c1">200</span>, <span class="pl-smi">TimeUnit</span><span class="pl-c1"><span class="pl-k">.</span>MILLISECONDS</span>,
+        <span class="pl-k">new</span> <span class="pl-k">ArrayBlockingQueue&lt;<span class="pl-smi">Runnable</span>&gt;</span>(<span class="pl-c1">5</span>));
+
+<span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">10</span>; <span class="pl-k">++</span>i) {
+    <span class="pl-smi">MyRunnable</span> myRunnable <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">MyRunnable</span>();
+    executor<span class="pl-k">.</span>execute(myRunnable);
+    <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>poolSize = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> executor<span class="pl-k">.</span>getPoolSize() <span class="pl-k">+</span>
+            <span class="pl-s"><span class="pl-pds">"</span>; queueSize = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> executor<span class="pl-k">.</span>getQueue()<span class="pl-k">.</span>size() <span class="pl-k">+</span>
+            <span class="pl-s"><span class="pl-pds">"</span>; accomplish = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> executor<span class="pl-k">.</span>getCompletedTaskCount());
+}
+executor<span class="pl-k">.</span>shutdown();</pre></div>
+
+<p>执行以后可以看到当线程池线程会被重用，当线程池中线程都被占用时，任务会被缓存到等待队列。</p>
+
+<h4>
+<a id="24-executors类的几个静态创建线程池方法" class="anchor" href="#24-executors%E7%B1%BB%E7%9A%84%E5%87%A0%E4%B8%AA%E9%9D%99%E6%80%81%E5%88%9B%E5%BB%BA%E7%BA%BF%E7%A8%8B%E6%B1%A0%E6%96%B9%E6%B3%95" aria-hidden="true"><span class="octicon octicon-link"></span></a>2.4 Executors类的几个静态创建线程池方法</h4>
+
+<p>ThreadPoolExecutor的构造函数参数众多，可能还不够便于使用，事实上可以利用Executors类的几个静态方法来创建线程池。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-smi">Executors</span><span class="pl-k">.</span>newSingleThreadExecutor();   <span class="pl-c">//创建容量为1的线程池</span>
+<span class="pl-smi">Executors</span><span class="pl-k">.</span>newFixedThreadPool(<span class="pl-k">int</span> threadNum);    <span class="pl-c">//创建固定容量大小的线程池</span>
+<span class="pl-smi">Executors</span><span class="pl-k">.</span>newCachedThreadPool();   <span class="pl-c">//创建一个缓冲池</span></pre></div>
+
+<p>前两个方法创建的线程池<code>corePoolSize</code>和<code>maximumPoolSize</code>值是相等的，使用<code>LinkedBlockingQueue</code>；最后一个方法<code>corePoolSize = 0</code>，<code>maximumPoolSize = Integer.MAX_VALUE</code>，使用<code>SynchronousQueue</code>，超时为60s，这意味着来了任务就会创建线程运行，当线程空闲60s以后就会被销毁。<br>
+这里给一个简单的使用例子，和<code>2.3节</code>例子是一致的。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-smi">ExecutorService</span> executor <span class="pl-k">=</span> <span class="pl-smi">Executors</span><span class="pl-k">.</span>newFixedThreadPool(<span class="pl-c1">5</span>);
+<span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">10</span>; <span class="pl-k">++</span>i) {
+    <span class="pl-smi">MyRunnable</span> myRunnable <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">MyRunnable</span>();
+    executor<span class="pl-k">.</span>execute(myRunnable);
+}
+executor<span class="pl-k">.</span>shutdown();</pre></div>
+
+<blockquote>
+<p><strong>Resource:</strong> 对于Java线程池更多的知识，可以阅读以下网址：
+<a href="http://www.cnblogs.com/dolphin0520/p/3932921.html">http://www.cnblogs.com/dolphin0520/p/3932921.html</a></p>
+</blockquote>
+
+<h3>
+<a id="3-java内存模型与线程可见性" class="anchor" href="#3-java%E5%86%85%E5%AD%98%E6%A8%A1%E5%9E%8B%E4%B8%8E%E7%BA%BF%E7%A8%8B%E5%8F%AF%E8%A7%81%E6%80%A7" aria-hidden="true"><span class="octicon octicon-link"></span></a>3. Java内存模型与线程可见性</h3>
+
+<p>先来看个典型的例子</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-c">//Ex3.1 线程可见性例子</span>
+<span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test</span> <span class="pl-k">extends</span> <span class="pl-e">Thread</span> {
+
+    <span class="pl-k">boolean</span> keepRunning <span class="pl-k">=</span> <span class="pl-c1">true</span>;
+
+    <span class="pl-k">public</span> <span class="pl-k">static</span> <span class="pl-k">void</span> <span class="pl-en">main</span>(<span class="pl-k">String</span>[] <span class="pl-v">args</span>) <span class="pl-k">throws</span> <span class="pl-smi">InterruptedException</span> {
+        <span class="pl-smi">Test</span> t <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Test</span>();
+        t<span class="pl-k">.</span>start();
+        <span class="pl-smi">Thread</span><span class="pl-k">.</span>sleep(<span class="pl-c1">1000</span>);
+        t<span class="pl-k">.</span>keepRunning <span class="pl-k">=</span> <span class="pl-c1">false</span>;
+        <span class="pl-smi">System</span><span class="pl-k">.</span>out<span class="pl-k">.</span>println(<span class="pl-smi">System</span><span class="pl-k">.</span>currentTimeMillis() <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>: keepRunning is false<span class="pl-pds">"</span></span>);
+    }
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-k">while</span> (keepRunning)
+            <span class="pl-smi">System</span><span class="pl-k">.</span>out<span class="pl-k">.</span>println(<span class="pl-smi">System</span><span class="pl-k">.</span>currentTimeMillis() <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>: <span class="pl-pds">"</span></span> <span class="pl-k">+</span> keepRunning);
+    }
+}</pre></div>
+
+<p>从类设计者角度来说，其本意是在Test线程运行后1秒后在主线程中将<code>keepRunning</code>变量设为<code>false</code>,以此来终止Test线程中一直保持的循环。然而这对于Java来说并不总能做到。事实上，<strong>Java的内存模型并不能保证一个线程中对变量的修改可以立即对其他线程可见</strong>。<code>Ex3.1</code>运行的结果将取决于运行环境，一种可能的情况是Test线程的循环将一直循环下去，这将背离类设计者的意图。<br>
+解决这个问题的途径有两个：<br>
+1. 使用<strong>volatile</strong>关键字<br>
+2. 使用<strong>synchronzied</strong>关键字     </p>
+
+<p>第二种方案留在后面做讲解，这里只讲解使用volatile关键字。<br>
+本质上将，volatile保证了变量在cache中的值总是最新的，从而可以<strong>保证对volatile变量的修改可以立刻对所有线程可见</strong>。通常在<strong>一个或多个读线程/一个写线程</strong>的情况下，将共享对象设置为volatile就可以解决问题，这时候volatile的作用类似于一个写锁。上面的代码只需简单修改为如下即可：</p>
+
+<pre><code>volatile boolean keepRunning = true;
+</code></pre>
+
+<blockquote>
+<p><strong>Caution:</strong> 必须值得注意的一点是，volatile相当于写锁有效的前提是，写的操作必须是<strong>原子的</strong>。如果写的操作不是原子的(譬如写操作不是<code>t.keepRunning = false</code>而是类似于<code>mIntIndex++</code>，<code>'++'</code>操作不是原子操作)，则会造成同步问题。</p>
+</blockquote>
+
+<h3>
+<a id="4-基本并发模型" class="anchor" href="#4-%E5%9F%BA%E6%9C%AC%E5%B9%B6%E5%8F%91%E6%A8%A1%E5%9E%8B" aria-hidden="true"><span class="octicon octicon-link"></span></a>4. 基本并发模型</h3>
+
+<p>上面说到volatile关键字可以保证线程可见性，但并不保证线程是同步的，譬如对共享对象的并发修改，volatile无法保证修改是互斥进行的。这时候需要使用互斥操作。
+通常意义上讲，多线程并发有三种基本情况：<br>
+1. Read / Read 并发模型<br>
+2. Read / Write 并发模型<br>
+3. Write / Write 并发模型  </p>
+
+<p>对于<strong>Read/Read</strong>情形并不需要使用锁来进行，仅存在对数据的读操作是线程安全的。<strong>Write/Write</strong>情形需要使用互斥锁来解决并发问题。<strong>Read/Write</strong>情形虽然也可以使用互斥锁来解决并发问题，但是使用读写锁则并发效率更高。</p>
+
+<h3>
+<a id="5-互斥锁" class="anchor" href="#5-%E4%BA%92%E6%96%A5%E9%94%81" aria-hidden="true"><span class="octicon octicon-link"></span></a>5. 互斥锁</h3>
+
+<p>互斥锁可以进行互斥操作，在Java中可以通过<code>synchronized</code>关键字或者<code>ReentrantLock</code>来通过对<strong>临界区</strong>加互斥锁的方式解决并发问题。这对于Read/Write并发模型和Write/Write并发模型都是有效的。<br>
+先来看一个对共享对象并发修改有问题的例子：</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test1</span> {
+
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">int</span> count <span class="pl-k">=</span> <span class="pl-c1">0</span>;
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">increaseCount</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">500</span>; <span class="pl-k">++</span>i) {
+            count<span class="pl-k">++</span>;
+            <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>count = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> count);
+        }
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-smi">Test1</span> test1 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Test1</span>();
+
+<span class="pl-smi">Thread</span> t1 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        test1<span class="pl-k">.</span>increaseCount();
+    }
+});
+
+<span class="pl-smi">Thread</span> t2 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        test1<span class="pl-k">.</span>increaseCount();
+    }
+});
+
+t1<span class="pl-k">.</span>start();
+t2<span class="pl-k">.</span>start();</pre></div>
+
+<p>这是一个典型的Write/Write问题，当多个线程同时执行对count的写操作时，就会发生同步问题，解决这个问题可以使用互斥操作。即多个线程对count的写操作是互斥的。</p>
+
+<h4>
+<a id="51-对方法加synchronized关键字修饰" class="anchor" href="#51-%E5%AF%B9%E6%96%B9%E6%B3%95%E5%8A%A0synchronized%E5%85%B3%E9%94%AE%E5%AD%97%E4%BF%AE%E9%A5%B0" aria-hidden="true"><span class="octicon octicon-link"></span></a>5.1 对方法加synchronized关键字修饰</h4>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test1</span> {
+
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">int</span> count <span class="pl-k">=</span> <span class="pl-c1">0</span>;
+
+    <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> <span class="pl-en">increaseCount</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">500</span>; <span class="pl-k">++</span>i) {
+            count<span class="pl-k">++</span>;
+            <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>count = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> count);
+        }
+    }
+}</pre></div>
+
+<p>对<code>increaseCount()</code>方法加<code>synchronized</code>关键词以后使得对该方法的访问变成互斥操作，同一时间只允许有一个线程执行该方法体。</p>
+
+<h4>
+<a id="52-静态方法和非静态方法加synchronized的区别" class="anchor" href="#52-%E9%9D%99%E6%80%81%E6%96%B9%E6%B3%95%E5%92%8C%E9%9D%9E%E9%9D%99%E6%80%81%E6%96%B9%E6%B3%95%E5%8A%A0synchronized%E7%9A%84%E5%8C%BA%E5%88%AB" aria-hidden="true"><span class="octicon octicon-link"></span></a>5.2 静态方法和非静态方法加synchronized的区别</h4>
+
+<p>对静态方法加synchronized关键字，使得所有该类的实例在不同线程中对该静态方法的调用都是互斥的(相当于<strong>给类加互斥锁</strong>)。而非静态方法加synchronized关键字，只保证该类的同一个实例对非静态方法的访问是互斥的(相当于<strong>给this加互斥锁</strong>)。</p>
+
+<h4>
+<a id="53-synchronized块" class="anchor" href="#53-synchronized%E5%9D%97" aria-hidden="true"><span class="octicon octicon-link"></span></a>5.3 synchronized块</h4>
+
+<p>对方法加synchronized可以简单、快捷地对该方法实现多线程互斥操作，然而很多时候并不是方法中的所有语句都需要进行互斥操作，更准确地说，只有那些处于<strong>临界区</strong>的语句需要互斥操作，因而可以使用synchronized块来构建临界区，这样做提高了并发性和吞吐量。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test1</span> {
+
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">int</span> count <span class="pl-k">=</span> <span class="pl-c1">0</span>;
+    <span class="pl-k">private</span> <span class="pl-smi">Object</span> myLock <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Object</span>();
+
+    <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> <span class="pl-en">increaseCount</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">500</span>; <span class="pl-k">++</span>i) {
+            <span class="pl-k">synchronized</span> (myLock) {
+                count<span class="pl-k">++</span>;
+                <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>count = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> count);
+            }
+        }
+    }
+}</pre></div>
+
+<blockquote>
+<p><strong>Caution:</strong> 使用Synchronized是一种简单有效地支持多线程同步的方法，然而同步操作会降低吞吐量，并不是所有的东西都需要加锁保护，应该将<strong>锁粒度最小化</strong>。另外，更糟糕的是，加锁操作有可能会导致<strong>死锁</strong>。事实上最容易发生死锁的情况就是在一个同步代码块中调用了另一个对象的方法，而那个对象已经被锁住并等待当前对象释放该锁。因此尽量<strong>不要在synchronized同步块中调用另一个对象的方法</strong>，除非你非常清楚另一个对象的类的代码不会发生死锁。</p>
+</blockquote>
+
+<h4>
+<a id="54-reentrantlock" class="anchor" href="#54-reentrantlock" aria-hidden="true"><span class="octicon octicon-link"></span></a>5.4 ReentrantLock</h4>
+
+<p>ReentrantLock是JDK1.5新增加的互斥锁，通常情况下，<code>ReentrantLock</code>会比<code>synchronized</code>效率要高，尤其是在搞资源争用情形下。然而，这并不表示我们要在所有情形下使用ReentrantLock替代synchronized，编写程序有一个重要的够用原则，只有在需要优化的情形下才进行优化，通常情形下synchronized的效率已经完全够用，此时并不需要改用ReentrantLock。辩证唯物地看，synchronized也具有不需要显式释放互斥锁，支持低版本JDK等优点。</p>
+
+<blockquote>
+<p><strong>Resource:</strong> 关于ReentrantLock和synchronized的效率对比以及什么时候该使用ReentrantLock的更多知识，可以参见以下链接：
+<a href="http://www.ibm.com/developerworks/library/j-jtp10264/">http://www.ibm.com/developerworks/library/j-jtp10264/</a></p>
+</blockquote>
+
+<p>以下代码用来展示使用ReentrantLock解决本节的并发互斥问题。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test1</span> {
+
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">int</span> count <span class="pl-k">=</span> <span class="pl-c1">0</span>;
+    <span class="pl-k">private</span> <span class="pl-smi">Object</span> myLock <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Object</span>();
+
+    <span class="pl-k">private</span> <span class="pl-smi">ReentrantLock</span> lock <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">ReentrantLock</span>();
+
+    <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> <span class="pl-en">increaseCount</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">500</span>; <span class="pl-k">++</span>i) {
+            lock<span class="pl-k">.</span>lock();
+                count<span class="pl-k">++</span>;
+                <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>count = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> count);
+            lock<span class="pl-k">.</span>unlock();
+        }
+    }
+}</pre></div>
+
+<h3>
+<a id="6-读写锁" class="anchor" href="#6-%E8%AF%BB%E5%86%99%E9%94%81" aria-hidden="true"><span class="octicon octicon-link"></span></a>6. 读写锁</h3>
+
+<p>对于<strong>Read/Write</strong>问题可以考虑使用读写锁来解决并发问题，对于<strong>读写锁可以保证可以有多个线程同时对资源进行读操作，而只有一个线程可以在某个时刻对资源进行写操作。</strong>写锁类似于synchronized，获得写锁的线程可以独享写的操作，其他线程无法获得写锁或者读锁，直到写锁被释放。获得读锁的线程可以允许其他线程获得读锁，但直到所有的读锁被释放才允许某个线程获得写锁。<br>
+首先看一个简单的并发读写例子。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test2</span> {
+
+    <span class="pl-k">private</span> <span class="pl-k">static</span> <span class="pl-k">final</span> <span class="pl-k">int</span> <span class="pl-c1">SIZE</span> <span class="pl-k">=</span> <span class="pl-c1">300</span>;
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">int</span> a[][] <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">int</span>[<span class="pl-c1">SIZE</span>][<span class="pl-c1">SIZE</span>];
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">write</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; i<span class="pl-k">++</span>) {
+            <span class="pl-k">for</span> (<span class="pl-k">int</span> j <span class="pl-k">=</span> <span class="pl-c1">0</span>; j <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; <span class="pl-k">++</span>j) {
+                a[i][j]<span class="pl-k">++</span>;
+                a[j][i]<span class="pl-k">--</span>;
+            }
+        }
+    }
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">read</span>() {
+        <span class="pl-k">int</span> value <span class="pl-k">=</span> <span class="pl-c1">0</span>;
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; i<span class="pl-k">++</span>) {
+            <span class="pl-k">for</span> (<span class="pl-k">int</span> j <span class="pl-k">=</span> <span class="pl-c1">0</span>; j <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; <span class="pl-k">++</span>j) {
+                value <span class="pl-k">+=</span> a[i][j];
+                value <span class="pl-k">+=</span> a[j][i];
+            }
+        }
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>value = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> value);
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-smi">Test2</span> test2 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Test2</span>();
+
+<span class="pl-smi">Thread</span> t1 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        test2<span class="pl-k">.</span>write();
+    }
+});
+
+<span class="pl-smi">Thread</span> t2 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        test2<span class="pl-k">.</span>read();
+    }
+});
+
+t1<span class="pl-k">.</span>start();
+t2<span class="pl-k">.</span>start();</pre></div>
+
+<p>在这个例子中打印出来的value结果将通常不是0，解决这样的并发问题当然可以使用<code>第5节</code>中加<code>synchronized</code>或者<code>ReentrantLock</code>的方法，譬如：</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> write() {
+    <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; i<span class="pl-k">++</span>) {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> j <span class="pl-k">=</span> <span class="pl-c1">0</span>; j <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; <span class="pl-k">++</span>j) {
+            a[i][j]<span class="pl-k">++</span>;
+            a[j][i]<span class="pl-k">--</span>;
+        }
+    }
+}
+
+<span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> read() {
+    <span class="pl-k">int</span> value <span class="pl-k">=</span> <span class="pl-c1">0</span>;
+    <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; i<span class="pl-k">++</span>) {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> j <span class="pl-k">=</span> <span class="pl-c1">0</span>; j <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; <span class="pl-k">++</span>j) {
+            value <span class="pl-k">+=</span> a[i][j];
+            value <span class="pl-k">+=</span> a[j][i];
+        }
+    }
+    <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>value = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> value);
+}</pre></div>
+
+<p>然而使用读写锁可以进一步提高并发吞吐量，提高程序的效率。在Java中可以使用<code>ReentrantReadWriteLock</code>来实现读写锁；配对使用<code>readWriteLock.readLock().lock()</code>和<code>readWriteLock.readLock().unlock()</code>来获取/释放读锁；配对使用<code>readWriteLock.writeLock().lock();</code>和<code>readWriteLock.writeLock().unlock();</code>来获取/释放写锁。<br>
+使用读写锁的例子如下所示：</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test2</span> {
+
+    <span class="pl-k">private</span> <span class="pl-k">static</span> <span class="pl-k">final</span> <span class="pl-k">int</span> <span class="pl-c1">SIZE</span> <span class="pl-k">=</span> <span class="pl-c1">300</span>;
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">int</span> a[][] <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">int</span>[<span class="pl-c1">SIZE</span>][<span class="pl-c1">SIZE</span>];
+
+    <span class="pl-k">private</span> <span class="pl-smi">ReentrantReadWriteLock</span> readWriteLock <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">ReentrantReadWriteLock</span>();
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">write</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; i<span class="pl-k">++</span>) {
+            <span class="pl-k">for</span> (<span class="pl-k">int</span> j <span class="pl-k">=</span> <span class="pl-c1">0</span>; j <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; <span class="pl-k">++</span>j) {
+                readWriteLock<span class="pl-k">.</span>writeLock()<span class="pl-k">.</span>lock();
+                a[i][j]<span class="pl-k">++</span>;
+                a[j][i]<span class="pl-k">--</span>;
+                readWriteLock<span class="pl-k">.</span>writeLock()<span class="pl-k">.</span>unlock();
+            }
+        }
+    }
+
+    <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> <span class="pl-en">read</span>() {
+        <span class="pl-k">int</span> value <span class="pl-k">=</span> <span class="pl-c1">0</span>;
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; i<span class="pl-k">++</span>) {
+            <span class="pl-k">for</span> (<span class="pl-k">int</span> j <span class="pl-k">=</span> <span class="pl-c1">0</span>; j <span class="pl-k">&lt;</span> <span class="pl-c1">SIZE</span>; <span class="pl-k">++</span>j) {
+                readWriteLock<span class="pl-k">.</span>readLock()<span class="pl-k">.</span>lock();
+                value <span class="pl-k">+=</span> a[i][j];
+                value <span class="pl-k">+=</span> a[j][i];
+                readWriteLock<span class="pl-k">.</span>readLock()<span class="pl-k">.</span>unlock();
+            }
+        }
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>value = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> value);
+    }
+}</pre></div>
+
+<h3>
+<a id="7-无锁操作" class="anchor" href="#7-%E6%97%A0%E9%94%81%E6%93%8D%E4%BD%9C" aria-hidden="true"><span class="octicon octicon-link"></span></a>7. 无锁操作</h3>
+
+<p><code>第5节</code>和<code>第6节</code>分别详述了使用互斥锁和读写锁来解决对共享变量的多线程并发问题。事实上，加锁操作意味着线程需要等待，一般来讲，会损失效率，当然在绝大多数情况下，这并不是特别大的问题。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> 还是重复之前那个原则，<strong>程序编写的原则是够用原则</strong>，只有在需要优化的情况下才考虑对效率的优化，并且优化的首要步骤是改进算法而不是改进实现，通常项目进度、异常处理、代码的可维护性是更重要的因子，<strong>优化需要抱着务实的态度</strong>。</p>
+</blockquote>
+
+<p>本节将讲述无锁操作，无锁操作保证线程安全性的前提下不使用锁机制，从而具有很高的并发效率。在Java中这可以通过<code>Atomic</code>变量来实现。Java定义了一系列的<code>Atomic</code>变量和相应的对这些变量的原子操作。这些变量包括<code>AtomicBoolean</code>，<code>AtomicInteger</code>，<code>AtomicLong</code>等。
+以下兹举一个使用<code>AtomicInteger</code>进行安全并发操作的例子。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test3</span> {
+
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-smi">AtomicInteger</span> count <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">AtomicInteger</span>(<span class="pl-c1">0</span>);
+
+    <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> <span class="pl-en">increaseCount</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">500</span>; <span class="pl-k">++</span>i) {
+            count<span class="pl-k">.</span>addAndGet(<span class="pl-c1">1</span>); <span class="pl-c">//类似于++count</span>
+            <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>count = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> count);
+        }
+    }
+}</pre></div>
+
+<blockquote>
+<p><strong>Warnning</strong> 注意使用<code>volatile</code>关键字来保证线程可见性。</p>
+</blockquote>
+
+<h3>
+<a id="8-线程安全的数据结构" class="anchor" href="#8-%E7%BA%BF%E7%A8%8B%E5%AE%89%E5%85%A8%E7%9A%84%E6%95%B0%E6%8D%AE%E7%BB%93%E6%9E%84" aria-hidden="true"><span class="octicon octicon-link"></span></a>8. 线程安全的数据结构</h3>
+
+<p><code>第7节</code>讲到了一些基本的<code>Atomic</code>变量可以用于并发操作，Java支持对一些更高级数据结构的安全访问，譬如<code>CopyOnWriteArrayList</code>、<code>ConcurrentLinkedQueue</code>和<code>ConcurrentHashMap</code>,分别支持数组和映射数据结构进行线程安全地访问。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> <code>HashTable</code>也是线程安全的，然而其效率要低于<code>ConcurrentHashMap</code>，这是由于<code>ConcurrentHashMap</code>采取了部分锁机制，而非使用全锁。更深入的了解可以点击下面的网址：
+<a href="http://wiki.jikexueyuan.com/project/java-collection/concurrenthashmap.html">http://wiki.jikexueyuan.com/project/java-collection/concurrenthashmap.html</a></p>
+</blockquote>
+
+<p>先看一个使用<code>HashMap</code>导致线程不安全的例子</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test4</span> {
+
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">HashMap&lt;<span class="pl-smi">Integer</span>, <span class="pl-smi">Integer</span>&gt;</span> unsafeMap <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">HashMap&lt;&gt;</span>();
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">writeElements</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">100</span>; <span class="pl-k">++</span>i) {
+            unsafeMap<span class="pl-k">.</span>put(<span class="pl-k">new</span> <span class="pl-smi">Integer</span>(i), i);
+        }
+        <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId( <span class="pl-s"><span class="pl-pds">"</span>map size = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> unsafeMap<span class="pl-k">.</span>size());
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-smi">Test4</span> test4 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Test4</span>();
+
+<span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">20</span>; <span class="pl-k">++</span>i) {
+    <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+            test4<span class="pl-k">.</span>writeElements();
+        }
+    })<span class="pl-k">.</span>start();
+}</pre></div>
+
+<p>打印出的结果(每一次运行结果不同)：</p>
+
+<pre><code>09-14 23:37:49.387  32099-32113/? I/gyw﹕ TID:6354; map size = 103
+09-14 23:37:49.387  32099-32114/? I/gyw﹕ TID:6355; map size = 103
+09-14 23:37:49.387  32099-32115/? I/gyw﹕ TID:6356; map size = 103
+09-14 23:37:49.387  32099-32117/? I/gyw﹕ TID:6358; map size = 103
+09-14 23:37:49.387  32099-32116/? I/gyw﹕ TID:6357; map size = 103
+09-14 23:37:49.397  32099-32118/? I/gyw﹕ TID:6359; map size = 103
+09-14 23:37:49.397  32099-32119/? I/gyw﹕ TID:6360; map size = 103
+09-14 23:37:49.397  32099-32120/? I/gyw﹕ TID:6361; map size = 103
+09-14 23:37:49.397  32099-32121/? I/gyw﹕ TID:6362; map size = 103
+09-14 23:37:49.397  32099-32122/? I/gyw﹕ TID:6363; map size = 103
+09-14 23:37:49.397  32099-32123/? I/gyw﹕ TID:6364; map size = 103
+09-14 23:37:49.397  32099-32124/? I/gyw﹕ TID:6365; map size = 103
+09-14 23:37:49.397  32099-32127/? I/gyw﹕ TID:6368; map size = 103
+09-14 23:37:49.397  32099-32125/? I/gyw﹕ TID:6366; map size = 103
+09-14 23:37:49.397  32099-32126/? I/gyw﹕ TID:6367; map size = 103
+09-14 23:37:49.397  32099-32128/? I/gyw﹕ TID:6369; map size = 103
+09-14 23:37:49.397  32099-32129/? I/gyw﹕ TID:6370; map size = 103
+09-14 23:37:49.397  32099-32130/? I/gyw﹕ TID:6371; map size = 103
+09-14 23:37:49.397  32099-32131/? I/gyw﹕ TID:6372; map size = 103
+09-14 23:37:49.397  32099-32132/? I/gyw﹕ TID:6373; map size = 103
+</code></pre>
+
+<p>如果线程操作是安全的，则map size应该为100。为了得到正确的结果，使用<code>ConcurrentHashMap</code>替代<code>HashMap</code>即可。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test4</span> {
+
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">ConcurrentHashMap&lt;<span class="pl-smi">Integer</span>, <span class="pl-smi">Integer</span>&gt;</span> safeMap <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">ConcurrentHashMap&lt;&gt;</span>();
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">writeElements</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">100</span>; <span class="pl-k">++</span>i) {
+            safeMap<span class="pl-k">.</span>put(<span class="pl-k">new</span> <span class="pl-smi">Integer</span>(i), i);
+        }
+        <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId( <span class="pl-s"><span class="pl-pds">"</span>map size = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> safeMap<span class="pl-k">.</span>size());
+    }
+}</pre></div>
+
+<blockquote>
+<p><strong>Warning:</strong> 使用线程安全的数据结构可以确保多数据结构的多线程访问是安全的，通常单个对数据结构的操作是原子的，但这<strong>绝不保证多个对数据结构的操作也是原子的</strong>。如果后面的操作是依赖于前面操作的结果，需要清醒地意识到在别的线程中可以会存在对数据的修改。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">void</span> not_a_transaction() {
+    safeMap<span class="pl-k">.</span>put(someKey1, someValue1);
+    <span class="pl-c">//other threads could execute between those two statements</span>
+    safeMap<span class="pl-k">.</span>get(someKey2);
+}</pre></div>
+
+<p>在put和get之间是有可能存在cpu被其他线程占用并执行对safeMap操作的情形，如果需要确保这样的操作是事物性的，可以考虑使用<code>synchronized</code>。</p>
+</blockquote>
+
+<h3>
+<a id="9-信号量semaphore" class="anchor" href="#9-%E4%BF%A1%E5%8F%B7%E9%87%8Fsemaphore" aria-hidden="true"><span class="octicon octicon-link"></span></a>9. 信号量(Semaphore)</h3>
+
+<p>信号量是较为低级的多线程同步机制，但是仍然表现出强大的性能，信号量既可以充当互斥锁来解决并发问题，也可以进行同步操作解决多线程协作问题。<br>
+信号量使用两个简单的原语操作，即<strong>wait操作</strong>(也叫P操作/acquire操作)和<strong>post操作</strong>(也叫V操作/signal操作/release操作)来实现对争用资源的互斥访问和多线程间的同步操作。先来讲解下<strong>wait/post原语</strong>操作。</p>
+
+<h4>
+<a id="91-waitpost原语" class="anchor" href="#91-waitpost%E5%8E%9F%E8%AF%AD" aria-hidden="true"><span class="octicon octicon-link"></span></a>9.1 wait/post原语</h4>
+
+<pre><code>wait原语
+----------
+Procedure sem_wait(Semaphore S)
+     S = S - 1;
+     if(S &lt; 0)
+          阻塞进程
+</code></pre>
+
+<pre><code>post原语
+----------
+Procedure sem_post(Semaphore S)
+     S = S + 1;
+     if(S &gt;= 0)
+          唤醒进程
+</code></pre>
+
+<h4>
+<a id="92-java-semaphore-apis" class="anchor" href="#92-java-semaphore-apis" aria-hidden="true"><span class="octicon octicon-link"></span></a>9.2 Java semaphore APIs</h4>
+
+<p>只列举几个最常用的API</p>
+
+<div class="highlight highlight-source-java"><pre>Semaphore(<span class="pl-k">int</span> permits) <span class="pl-c">//构造函数，permits为信号量初值</span>
+Semaphore(<span class="pl-k">int</span> permits, <span class="pl-k">boolean</span> fair) <span class="pl-c">//fair为公平参数</span>
+
+<span class="pl-k">public</span> <span class="pl-k">void</span> acquire() throws <span class="pl-smi">InterruptedException</span> <span class="pl-c">//wait操作，信号量减1</span>
+<span class="pl-k">public</span> <span class="pl-k">void</span> acquire(<span class="pl-k">int</span> n) throws <span class="pl-smi">InterruptedException</span> <span class="pl-c">//wait操作，信号量减n</span>
+
+<span class="pl-k">public</span> <span class="pl-k">void</span> release()  <span class="pl-c">//post操作，信号量加1</span>
+<span class="pl-k">public</span> <span class="pl-k">void</span> release(<span class="pl-k">int</span> n)  <span class="pl-c">//post操作，信号量加n</span></pre></div>
+
+<h4>
+<a id="93-信号量充当互斥锁" class="anchor" href="#93-%E4%BF%A1%E5%8F%B7%E9%87%8F%E5%85%85%E5%BD%93%E4%BA%92%E6%96%A5%E9%94%81" aria-hidden="true"><span class="octicon octicon-link"></span></a>9.3 信号量充当互斥锁</h4>
+
+<p><code>第5节</code>讲到了Java中典型关于互斥锁的应用，这里展示如何使用信号量充当互斥锁。<br>
+<strong>充当互斥锁需要将信号量初始值置为1</strong></p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Test5</span> {
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">int</span> count <span class="pl-k">=</span> <span class="pl-c1">0</span>;
+
+    <span class="pl-k">private</span> <span class="pl-smi">Semaphore</span> sem_mutex <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Semaphore</span>(<span class="pl-c1">1</span>);
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">increaseCount</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">200</span>; <span class="pl-k">++</span>i) {
+            <span class="pl-k">try</span> {
+                sem_mutex<span class="pl-k">.</span>acquire(); <span class="pl-c">//critial area</span>
+                count<span class="pl-k">++</span>;
+                <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>count = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> count);
+                sem_mutex<span class="pl-k">.</span>release(); <span class="pl-c">//critical area</span>
+            } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+                e<span class="pl-k">.</span>printStackTrace();
+            }
+        }
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-smi">Test5</span> test5 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Test5</span>();
+
+<span class="pl-smi">ExecutorService</span> executor <span class="pl-k">=</span> <span class="pl-smi">Executors</span><span class="pl-k">.</span>newFixedThreadPool(<span class="pl-c1">5</span>);
+<span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">5</span>; <span class="pl-k">++</span>i) {
+    <span class="pl-smi">Runnable</span> runnable <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+            test5<span class="pl-k">.</span>increaseCount();
+        }
+    };
+    executor<span class="pl-k">.</span>execute(runnable);
+}
+executor<span class="pl-k">.</span>shutdown();</pre></div>
+
+<h4>
+<a id="94-用信号量实现线程顺序执行" class="anchor" href="#94-%E7%94%A8%E4%BF%A1%E5%8F%B7%E9%87%8F%E5%AE%9E%E7%8E%B0%E7%BA%BF%E7%A8%8B%E9%A1%BA%E5%BA%8F%E6%89%A7%E8%A1%8C" aria-hidden="true"><span class="octicon octicon-link"></span></a>9.4 用信号量实现线程顺序执行</h4>
+
+<p>信号量可以保证若干线程按顺序执行。
+<strong>信号量初始值设为0</strong></p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-smi">Semaphore</span> sem_sync12 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Semaphore</span>(<span class="pl-c1">0</span>);
+
+<span class="pl-smi">Thread</span> thread1 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>I am thread1<span class="pl-pds">"</span></span>);
+        sem_sync12<span class="pl-k">.</span>release();
+    }
+});
+
+<span class="pl-smi">Thread</span> thread2 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-k">try</span> {
+            sem_sync12<span class="pl-k">.</span>acquire(); <span class="pl-c">//wait thread1 having finished</span>
+            <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>I am thread2<span class="pl-pds">"</span></span>);
+        } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+            e<span class="pl-k">.</span>printStackTrace();
+        }
+    }
+});
+
+thread2<span class="pl-k">.</span>start();
+thread1<span class="pl-k">.</span>start();</pre></div>
+
+<p>程序运行结果是确定的，尽管thread2先thread1启动，打印结果如下：</p>
+
+<pre><code>09-16 09:32:15.996  31560-31575/? D/gyw﹕ I am thread1
+09-16 09:32:15.996  31560-31574/? D/gyw﹕ I am thread2
+</code></pre>
+
+<h4>
+<a id="95-无限长队列的生产者-消费者问题" class="anchor" href="#95-%E6%97%A0%E9%99%90%E9%95%BF%E9%98%9F%E5%88%97%E7%9A%84%E7%94%9F%E4%BA%A7%E8%80%85-%E6%B6%88%E8%B4%B9%E8%80%85%E9%97%AE%E9%A2%98" aria-hidden="true"><span class="octicon octicon-link"></span></a>9.5 无限长队列的生产者-消费者问题</h4>
+
+<p>生产者-消费者问题是用一个线程模拟生产者，每次生产一个产品放入队列中；用另一个线程模拟消费者，每次从队列中取走一个产品来消费。这个问题既涉及到<strong>并发控制</strong>，也涉及到<strong>同步控制</strong>。<br>
+因为队列是共享的，所以在多线程都对其进行操作时需要进行并发控制，可以使用并发锁；也因为生产者，消费者这两个线程间存在反馈抑制，因此需要进行同步控制。对于无限长队列来说，不用担心队列溢出的问题，因此生产者可以放肆进行生产，因此不存在对生产者的反馈抑制；而对于消费者，必须是队列中已经存在了产品才可以进行消费，因此存在生产者对消费者的反馈抑制，即生产者生产了一个产品向消费者发出<code>post</code>通知，消费者必须首先调用<code>wait</code>操作来确认是否存在产品进行消费，否则必须阻塞自己来安静等待生产者的<code>post</code>通知的到来。<br>
+如果使用<code>semaphore</code>来进行并发控制，只需要设置一个<code>sem_canConsume</code>信号量即可，<strong>初值设为0</strong>，含义是一开始的时候并没有产品生产出来。以下是一个<code>Demo</code>。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-k">Queue&lt;<span class="pl-smi">Integer</span>&gt;</span> queue <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">LinkedList&lt;&gt;</span>();
+
+<span class="pl-k">final</span> <span class="pl-smi">Semaphore</span> sem_canConsume <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Semaphore</span>(<span class="pl-c1">0</span>);
+<span class="pl-k">final</span> <span class="pl-smi">Object</span> lock <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Object</span>();
+
+<span class="pl-smi">Thread</span> producer <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">500</span>; <span class="pl-k">++</span>i) {
+            <span class="pl-k">synchronized</span> (lock) {
+                queue<span class="pl-k">.</span>offer(i); <span class="pl-c">//add a product to the queue</span>
+                <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>produced; queueSize = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> queue<span class="pl-k">.</span>size());
+            }
+            sem_canConsume<span class="pl-k">.</span>release(); <span class="pl-c">//signal that one product is added</span>
+        }
+    }
+});
+
+<span class="pl-smi">Thread</span> consumer <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-k">try</span> {
+            <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">500</span>; <span class="pl-k">++</span>i) {
+                sem_canConsume<span class="pl-k">.</span>acquire(); <span class="pl-c">//wait that there is at least one product</span>
+                <span class="pl-k">synchronized</span> (lock) {
+                    queue<span class="pl-k">.</span>poll(); <span class="pl-c">//consume a product</span>
+                    <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>consumed; queueSize = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> queue<span class="pl-k">.</span>size());
+                }
+            }
+        } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+            e<span class="pl-k">.</span>printStackTrace();
+        }
+    }
+});
+
+producer<span class="pl-k">.</span>start();
+consumer<span class="pl-k">.</span>start();</pre></div>
+
+<h4>
+<a id="96-有限长队列的生产者-消费者问题" class="anchor" href="#96-%E6%9C%89%E9%99%90%E9%95%BF%E9%98%9F%E5%88%97%E7%9A%84%E7%94%9F%E4%BA%A7%E8%80%85-%E6%B6%88%E8%B4%B9%E8%80%85%E9%97%AE%E9%A2%98" aria-hidden="true"><span class="octicon octicon-link"></span></a>9.6 有限长队列的生产者-消费者问题</h4>
+
+<p>和无限长队列同类问题比较起来，由于队列是有限长的，因此存在了消费者对生产者的反馈抑制。如果使用<code>semaphore</code>来进行并发控制，除了设置一个<code>sem_canConsume</code>信号量来实现生产者对消费者的反馈抑制，<strong>初值设为0</strong>，含义是一开始的时候并没有产品生产出来；还需要设置一个<code>sem_canProduce</code>信号量来实现消费者对生产者的反馈抑制，<strong>初值设为队列长度QUEUE_LEN</strong>，含义是最开始的时候有QUEUE_LEN个位置可以供生产者使用。以下是一个<code>Demo</code>。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-k">int</span> <span class="pl-c1">QUEUE_LEN</span> <span class="pl-k">=</span> <span class="pl-c1">3</span>;
+
+<span class="pl-k">final</span> <span class="pl-k">Queue&lt;<span class="pl-smi">Integer</span>&gt;</span> queue <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">LinkedList&lt;&gt;</span>();
+
+<span class="pl-k">final</span> <span class="pl-smi">Semaphore</span> sem_canConsume <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Semaphore</span>(<span class="pl-c1">0</span>);
+<span class="pl-k">final</span> <span class="pl-smi">Semaphore</span> sem_canProduce <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Semaphore</span>(<span class="pl-c1">QUEUE_LEN</span>);
+<span class="pl-k">final</span> <span class="pl-smi">Object</span> lock <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Object</span>();
+
+<span class="pl-smi">Thread</span> producer <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">15</span>; <span class="pl-k">++</span>i) {
+            <span class="pl-k">try</span> {
+                sem_canProduce<span class="pl-k">.</span>acquire(); <span class="pl-c">//wait until queue is not full</span>
+                <span class="pl-k">synchronized</span> (lock) {
+                    queue<span class="pl-k">.</span>offer(i); <span class="pl-c">//add a product to the queue</span>
+                    <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>produced; queueSize = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> queue<span class="pl-k">.</span>size());
+                }
+                sem_canConsume<span class="pl-k">.</span>release(); <span class="pl-c">//signal that one product is added</span>
+            } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+                e<span class="pl-k">.</span>printStackTrace();
+            }
+        }
+    }
+});
+
+<span class="pl-smi">Thread</span> consumer <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-k">try</span> {
+            <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">15</span>; <span class="pl-k">++</span>i) {
+                sem_canConsume<span class="pl-k">.</span>acquire(); <span class="pl-c">//wait that there is at least one product</span>
+                <span class="pl-k">synchronized</span> (lock) {
+                    queue<span class="pl-k">.</span>poll(); <span class="pl-c">//consume a product</span>
+                    <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>consumed; queueSize = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> queue<span class="pl-k">.</span>size());
+                }
+                sem_canProduce<span class="pl-k">.</span>release();
+            }
+        } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+            e<span class="pl-k">.</span>printStackTrace();
+        }
+    }
+});
+
+producer<span class="pl-k">.</span>start();
+consumer<span class="pl-k">.</span>start();</pre></div>
+
+<p>运行结果如下：</p>
+
+<pre><code>09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 3
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 0
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 3
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 3
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 0
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 3
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 3
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 2
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 1
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 0
+09-16 10:22:08.116    1027-1041/? D/gyw﹕ produced; queueSize = 1
+09-16 10:22:08.116    1027-1042/? D/gyw﹕ consumed; queueSize = 0
+</code></pre>
+
+<p>可以看到，<code>queueSize</code>从来没有超过程序中设置的<code>QUEUE_LEN</code>值，意味着成功实现了消费者对生产者的反馈抑制；<code>queueSize</code>也从来没有是负值或者程序抛出异常，意味着成功实现了生产者对消费者的反馈抑制。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> 简单地使用信号量无法做到<strong>多生产者-多消费者</strong>的同步控制。这个问题将留在后面章节解决。</p>
+</blockquote>
+
+<h3>
+<a id="10-条件变量condition" class="anchor" href="#10-%E6%9D%A1%E4%BB%B6%E5%8F%98%E9%87%8Fcondition" aria-hidden="true"><span class="octicon octicon-link"></span></a>10. 条件变量(Condition)</h3>
+
+<p>Java条件变量可以用来进行线程间的同步控制，尤其是在反馈调节上较<code>semaphore</code>更为强大。</p>
+
+<h4>
+<a id="101-条件变量常用apis" class="anchor" href="#101-%E6%9D%A1%E4%BB%B6%E5%8F%98%E9%87%8F%E5%B8%B8%E7%94%A8apis" aria-hidden="true"><span class="octicon octicon-link"></span></a>10.1 条件变量常用APIs</h4>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-c">//初始化条件变量</span>
+<span class="pl-smi">ReentrantLock</span> lock <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">ReentrantLock</span>();
+<span class="pl-smi">Condition</span> cond_canConsume <span class="pl-k">=</span> lock<span class="pl-k">.</span>newCondition();
+
+await() <span class="pl-c">//wait操作 </span>
+signal() <span class="pl-c">//post操作</span></pre></div>
+
+<p>以下展示如何使用条件变量解决生产者-消费者问题。</p>
+
+<h4>
+<a id="102-有限长队列的生产者-消费者问题" class="anchor" href="#102-%E6%9C%89%E9%99%90%E9%95%BF%E9%98%9F%E5%88%97%E7%9A%84%E7%94%9F%E4%BA%A7%E8%80%85-%E6%B6%88%E8%B4%B9%E8%80%85%E9%97%AE%E9%A2%98" aria-hidden="true"><span class="octicon octicon-link"></span></a>10.2 有限长队列的生产者-消费者问题</h4>
+
+<p>先来看看生产者和消费者的代码，这里面包含了如何用锁来解决并发控制，以及如何用条件变量来解决同步控制。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">private</span> <span class="pl-k">static</span> <span class="pl-k">final</span> <span class="pl-k">int</span> <span class="pl-c1">QUEUE_LEN</span> <span class="pl-k">=</span> <span class="pl-c1">3</span>;
+<span class="pl-k">private</span> <span class="pl-k">Queue&lt;<span class="pl-smi">Integer</span>&gt;</span> queue <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">LinkedList&lt;&gt;</span>();
+
+<span class="pl-k">private</span> <span class="pl-smi">ReentrantLock</span> lock <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">ReentrantLock</span>();
+<span class="pl-k">private</span> <span class="pl-smi">Condition</span> cond_canConsume <span class="pl-k">=</span> lock<span class="pl-k">.</span>newCondition();
+<span class="pl-k">private</span> <span class="pl-smi">Condition</span> cond_canProduce <span class="pl-k">=</span> lock<span class="pl-k">.</span>newCondition();
+
+
+<span class="pl-k">public</span> <span class="pl-k">void</span> producer() {
+     <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">5</span>; <span class="pl-k">++</span>i) {
+         lock<span class="pl-k">.</span>lock();
+
+         <span class="pl-k">try</span> {
+             <span class="pl-k">while</span> (queue<span class="pl-k">.</span>size() <span class="pl-k">==</span> <span class="pl-c1">QUEUE_LEN</span>) { <span class="pl-c">//queue is full</span>
+                 <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>queue is full, waiting...<span class="pl-pds">"</span></span>);
+                 cond_canProduce<span class="pl-k">.</span>await();
+             }
+
+             <span class="pl-c">//queue is not full now</span>
+             queue<span class="pl-k">.</span>offer(i); <span class="pl-c">//add a product to the queue</span>
+             <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>produced; queueSize = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> queue<span class="pl-k">.</span>size());
+             cond_canConsume<span class="pl-k">.</span>signal(); <span class="pl-c">//signal that a product has been produced</span>
+
+         } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+             e<span class="pl-k">.</span>printStackTrace();
+         } <span class="pl-k">finally</span> {
+             lock<span class="pl-k">.</span>unlock();
+         }
+
+     }
+ }
+
+ <span class="pl-k">public</span> <span class="pl-k">void</span> consumer() {
+     <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">5</span>; <span class="pl-k">++</span>i) {
+         lock<span class="pl-k">.</span>lock();
+
+         <span class="pl-k">try</span> {
+             <span class="pl-k">while</span> (queue<span class="pl-k">.</span>size() <span class="pl-k">==</span> <span class="pl-c1">0</span>) { <span class="pl-c">//queue is empty</span>
+                 <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>queue is empty, waiting...<span class="pl-pds">"</span></span>);
+                 cond_canConsume<span class="pl-k">.</span>await();
+             }
+
+             <span class="pl-c">//queue is not empty now</span>
+             queue<span class="pl-k">.</span>poll(); <span class="pl-c">//consume a product</span>
+             <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>consumed; queueSize = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> queue<span class="pl-k">.</span>size());
+             cond_canProduce<span class="pl-k">.</span>signal(); <span class="pl-c">//signal that a product has been produced</span>
+
+         } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+             e<span class="pl-k">.</span>printStackTrace();
+         } <span class="pl-k">finally</span> {
+             lock<span class="pl-k">.</span>unlock();
+         }
+
+     }
+ }</pre></div>
+
+<p>接着来看看启动代码</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-smi">ExecutorService</span> executor <span class="pl-k">=</span> <span class="pl-smi">Executors</span><span class="pl-k">.</span>newFixedThreadPool(<span class="pl-c1">2</span>);
+
+<span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">1</span>; <span class="pl-k">++</span>i) { <span class="pl-c">//add one producer thread</span>
+    executor<span class="pl-k">.</span>execute(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+            producer();
+        }
+    });
+}
+
+<span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">1</span>; <span class="pl-k">++</span>i) { <span class="pl-c">//add one consumer thread</span>
+    executor<span class="pl-k">.</span>execute(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+            consumer();
+        }
+    });
+}
+
+executor<span class="pl-k">.</span>shutdown();</pre></div>
+
+<p>程序运行结果如下：</p>
+
+<pre><code>09-17 08:15:29.105  21003-21016/? D/gyw﹕ produced; queueSize = 1
+09-17 08:15:29.105  21003-21016/? D/gyw﹕ produced; queueSize = 2
+09-17 08:15:29.105  21003-21016/? D/gyw﹕ produced; queueSize = 3
+09-17 08:15:29.105  21003-21016/? D/gyw﹕ queue is full, waiting...
+09-17 08:15:29.105  21003-21017/? D/gyw﹕ consumed; queueSize = 2
+09-17 08:15:29.105  21003-21017/? D/gyw﹕ consumed; queueSize = 1
+09-17 08:15:29.105  21003-21017/? D/gyw﹕ consumed; queueSize = 0
+09-17 08:15:29.115  21003-21017/? D/gyw﹕ queue is empty, waiting...
+09-17 08:15:29.115  21003-21016/? D/gyw﹕ produced; queueSize = 1
+09-17 08:15:29.115  21003-21016/? D/gyw﹕ produced; queueSize = 2
+09-17 08:15:29.115  21003-21017/? D/gyw﹕ consumed; queueSize = 1
+09-17 08:15:29.115  21003-21017/? D/gyw﹕ consumed; queueSize = 0
+</code></pre>
+
+<p>从结果中可以看出，当队列满的时候，生产者被抑制；当队列空的时候，消费者被抑制。</p>
+
+<h4>
+<a id="103-有限长队列的多生产者-多消费者问题" class="anchor" href="#103-%E6%9C%89%E9%99%90%E9%95%BF%E9%98%9F%E5%88%97%E7%9A%84%E5%A4%9A%E7%94%9F%E4%BA%A7%E8%80%85-%E5%A4%9A%E6%B6%88%E8%B4%B9%E8%80%85%E9%97%AE%E9%A2%98" aria-hidden="true"><span class="octicon octicon-link"></span></a>10.3 有限长队列的多生产者-多消费者问题</h4>
+
+<p><code>第9节</code>结尾提到，简单使用信号量无法解决<strong>多生产者-多消费者</strong>的同步控制问题，然而简单使用<strong>条件变量</strong>却很容易解决这个问题，简单到事实上这个问题已经解决了！没错就是在刚刚讲解的<code>10.2节</code>，<strong>多生产者-多消费者</strong>和<strong>单生产者-单消费者</strong>问题使用<strong>条件变量</strong>来解决同步控制问题是完全一致的。<br>
+其中生产者、消费者、条件变量申明无需变化，仅仅修改下启动代码就可以，修改也只是添加多了生产者和消费者线程来做演示。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-smi">ExecutorService</span> executor <span class="pl-k">=</span> <span class="pl-smi">Executors</span><span class="pl-k">.</span>newFixedThreadPool(<span class="pl-c1">4</span>);
+
+<span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">2</span>; <span class="pl-k">++</span>i) { <span class="pl-c">//add producer threads</span>
+    executor<span class="pl-k">.</span>execute(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+            producer();
+        }
+    });
+}
+
+<span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">2</span>; <span class="pl-k">++</span>i) { <span class="pl-c">//add consumer threads</span>
+    executor<span class="pl-k">.</span>execute(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+            consumer();
+        }
+    });
+}
+
+executor<span class="pl-k">.</span>shutdown();</pre></div>
+
+<p>运行结果如下：</p>
+
+<pre><code>09-17 08:20:17.875  21155-21168/? D/gyw﹕ produced; queueSize = 1
+09-17 08:20:17.875  21155-21168/? D/gyw﹕ produced; queueSize = 2
+09-17 08:20:17.875  21155-21168/? D/gyw﹕ produced; queueSize = 3
+09-17 08:20:17.875  21155-21168/? D/gyw﹕ queue is full, waiting...
+09-17 08:20:17.875  21155-21169/? D/gyw﹕ queue is full, waiting...
+09-17 08:20:17.875  21155-21170/? D/gyw﹕ consumed; queueSize = 2
+09-17 08:20:17.875  21155-21170/? D/gyw﹕ consumed; queueSize = 1
+09-17 08:20:17.875  21155-21170/? D/gyw﹕ consumed; queueSize = 0
+09-17 08:20:17.875  21155-21170/? D/gyw﹕ queue is empty, waiting...
+09-17 08:20:17.885  21155-21168/? D/gyw﹕ produced; queueSize = 1
+09-17 08:20:17.885  21155-21168/? D/gyw﹕ produced; queueSize = 2
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ produced; queueSize = 3
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ queue is full, waiting...
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ consumed; queueSize = 2
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ consumed; queueSize = 1
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ consumed; queueSize = 0
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ queue is empty, waiting...
+09-17 08:20:17.885  21155-21170/? D/gyw﹕ queue is empty, waiting...
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ produced; queueSize = 1
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ produced; queueSize = 2
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ produced; queueSize = 3
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ consumed; queueSize = 2
+09-17 08:20:17.885  21155-21171/? D/gyw﹕ consumed; queueSize = 1
+09-17 08:20:17.885  21155-21170/? D/gyw﹕ consumed; queueSize = 0
+09-17 08:20:17.885  21155-21170/? D/gyw﹕ queue is empty, waiting...
+09-17 08:20:17.885  21155-21169/? D/gyw﹕ produced; queueSize = 1
+09-17 08:20:17.885  21155-21170/? D/gyw﹕ consumed; queueSize = 0
+</code></pre>
+
+<h4>
+<a id="104-假唤醒问题" class="anchor" href="#104-%E5%81%87%E5%94%A4%E9%86%92%E9%97%AE%E9%A2%98" aria-hidden="true"><span class="octicon octicon-link"></span></a>10.4 假唤醒问题</h4>
+
+<p>如果将10.3节的生产者和消费者代码中的</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">while</span> (queue<span class="pl-k">.</span>size() <span class="pl-k">==</span> <span class="pl-c1">0</span>) { <span class="pl-c">//queue is empty</span>
+    <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>queue is empty, waiting...<span class="pl-pds">"</span></span>);
+    cond_canConsume<span class="pl-k">.</span>await();
+}</pre></div>
+
+<p>替换成</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">if</span> (queue<span class="pl-k">.</span>size() <span class="pl-k">==</span> <span class="pl-c1">0</span>) { <span class="pl-c">//queue is empty</span>
+    <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>queue is empty, waiting...<span class="pl-pds">"</span></span>);
+    cond_canConsume<span class="pl-k">.</span>await();
+}</pre></div>
+
+<p>则代码存在假唤醒的潜在问题，所谓假唤醒是由于可能存在多个阻塞线程等待条件变量的信号，并在收到条件变量信号后被唤醒，而程序可能只允许其中一个线程在醒来后获得工作机会，其他的线程被唤醒后发现自己无事可做，只得再次进入阻塞状态。<br>
+当将代码中的<code>while</code>替换成<code>if</code>后，线程被唤醒后就不会再检查<code>queue.size()</code>是否为<code>0</code>了，想当然认为自己是被唤醒来获得工作机会的，从而直接执行后面代码，殊不知还有其他线程也被唤醒，而只有其中一个线程能获得工作机会，这将造成潜在错误。</p>
+
+<blockquote>
+<p><strong>Warning:</strong> 使用条件变量时，尽量使用<code>while</code>来判断条件是否达到，而不是<code>if</code>，从而避免假唤醒带来的错误。</p>
+</blockquote>
+
+<h3>
+<a id="11-阻塞队列block-queue" class="anchor" href="#11-%E9%98%BB%E5%A1%9E%E9%98%9F%E5%88%97block-queue" aria-hidden="true"><span class="octicon octicon-link"></span></a>11. 阻塞队列(Block Queue)</h3>
+
+<p>阻塞队列用途多种多样，在<code>2.1</code>节中就提到了Java线程池使用阻塞队列作为线程缓存队列。不只是如此，在多线程同步控制上，阻塞队列也是可以大显身手的。<br>
+事实上，阻塞队列的实现就是使用到了<code>第10节</code>讲到的条件变量，使用一个<code>ReentrantLock</code>来控制队列的并发，用两个<code>Condition</code>变量来控制队列的同步。</p>
+
+<h4>
+<a id="111-几种常用的阻塞队列" class="anchor" href="#111-%E5%87%A0%E7%A7%8D%E5%B8%B8%E7%94%A8%E7%9A%84%E9%98%BB%E5%A1%9E%E9%98%9F%E5%88%97" aria-hidden="true"><span class="octicon octicon-link"></span></a>11.1 几种常用的阻塞队列</h4>
+
+<ol>
+<li>
+<strong>ArrayBlockingQueue：</strong> 基于数组实现的一个阻塞队列，在创建ArrayBlockingQueue对象时必须指定容量大小。另外可以指定公平性，即不保证等待时间最长的队列最优先能够访问队列。</li>
+<li>
+<strong>LinkedBlockingQueue：</strong> 基于链表实现的一个阻塞队列，在创建LinkedBlockingQueue对象时如果不指定容量大小，则默认大小为Integer.MAX_VALUE。由于内存是动态分配的，通常情况下无需指定容量大小。</li>
+<li>
+<strong>PriorityBlockingQueue：</strong> 基于堆实现的一个阻塞队列，不同于<code>ArrayBlockingQueue</code>和<code>LinkedBlockingQueue</code>的先进先出性质，<code>PriorityBlockingQueue</code>会按照队列元素优先级顺序出队，每次出队的元素都是优先级最高的元素。无需指定容量大小。</li>
+<li>
+<strong>DelayQueue：</strong> 基于<code>PriorityBlockingQueue</code>，<code>DelayQueue</code>中的元素只有当其指定的延迟时间到了，才能够从队列中获取到该元素。无需指定容量大小。</li>
+</ol>
+
+<blockquote>
+<p><strong>Tip:</strong> 以上所说的常用阻塞队列中，前两种是有界队列，后两种是无界队列。</p>
+</blockquote>
+
+<h4>
+<a id="112-阻塞队列基本apis" class="anchor" href="#112-%E9%98%BB%E5%A1%9E%E9%98%9F%E5%88%97%E5%9F%BA%E6%9C%ACapis" aria-hidden="true"><span class="octicon octicon-link"></span></a>11.2 阻塞队列基本APIs</h4>
+
+<p>阻塞队列支持常规队列的基本操作，包括</p>
+
+<pre><code>add(E e)：队尾插入元素，插入失败则抛出异常。
+
+remove()：移除队首元素，溢出失败则抛出异常。
+
+offer(E e)：队尾插入元素，如果插入成功，则返回true；如果插入失败，则返回false。
+
+poll()：移除并获取队首元素；若成功，则返回队首元素；否则返回null。
+
+peek()：获取队首元素(并不移出)，若成功，则返回队首元素；否则返回null。
+</code></pre>
+
+<p>对于阻塞队列，还支持阻塞存取方法</p>
+
+<pre><code>put(E e)：向队尾插入元素，如果队列满，则等待。
+
+take()：从队首取元素，如果队列为空，则等待。
+</code></pre>
+
+<p>阻塞队列初始化，类似于</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">BlockingQueue&lt;<span class="pl-smi">Integer</span>&gt;</span> queue <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">ArrayBlockingQueue&lt;<span class="pl-smi">Integer</span>&gt;</span>(<span class="pl-c1">3</span>)
+<span class="pl-k">BlockingQueue&lt;<span class="pl-smi">String</span>&gt;</span> queue <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">LinkedBlockingDeque&lt;&gt;</span>()</pre></div>
+
+<h4>
+<a id="113-使用阻塞队列解决多生产者-多消费者同步问题" class="anchor" href="#113-%E4%BD%BF%E7%94%A8%E9%98%BB%E5%A1%9E%E9%98%9F%E5%88%97%E8%A7%A3%E5%86%B3%E5%A4%9A%E7%94%9F%E4%BA%A7%E8%80%85-%E5%A4%9A%E6%B6%88%E8%B4%B9%E8%80%85%E5%90%8C%E6%AD%A5%E9%97%AE%E9%A2%98" aria-hidden="true"><span class="octicon octicon-link"></span></a>11.3 使用阻塞队列解决多生产者-多消费者同步问题</h4>
+
+<p>使用阻塞队列来解决<strong>生产者-消费者</strong>问题大概从编程上来说最简单的了，由于并发控制和同步控制代码已经被阻塞队列自身实现所封装，我们从代码的表面已经看不到并发控制和同步控制了。
+消费者和生产者代码如下：</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">private</span> <span class="pl-k">static</span> <span class="pl-k">final</span> <span class="pl-k">int</span> <span class="pl-c1">QUEUE_LEN</span> <span class="pl-k">=</span> <span class="pl-c1">3</span>;
+<span class="pl-k">private</span> <span class="pl-k">BlockingQueue&lt;<span class="pl-smi">Integer</span>&gt;</span> queue <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">ArrayBlockingQueue&lt;<span class="pl-smi">Integer</span>&gt;</span>(<span class="pl-c1">3</span>);
+
+<span class="pl-k">public</span> <span class="pl-k">void</span> producer() {
+    <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">5</span>; <span class="pl-k">++</span>i) {
+        <span class="pl-k">try</span> {
+            queue<span class="pl-k">.</span>put(i);
+            <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>produced; queueSize = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> queue<span class="pl-k">.</span>size());
+        } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+            e<span class="pl-k">.</span>printStackTrace();
+        }
+    }
+}
+
+<span class="pl-k">public</span> <span class="pl-k">void</span> consumer() {
+    <span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">5</span>; <span class="pl-k">++</span>i) {
+        <span class="pl-k">try</span> {
+            queue<span class="pl-k">.</span>take();
+            <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>consumed; queueSize = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> queue<span class="pl-k">.</span>size());
+        } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+            e<span class="pl-k">.</span>printStackTrace();
+        }
+    }
+}</pre></div>
+
+<p>启动代码和<code>10.3节</code>完全一致，这里就不再累赘列举了。</p>
+
+<h3>
+<a id="12-线程特有数据tsd-thread-specific-data" class="anchor" href="#12-%E7%BA%BF%E7%A8%8B%E7%89%B9%E6%9C%89%E6%95%B0%E6%8D%AEtsd-thread-specific-data" aria-hidden="true"><span class="octicon octicon-link"></span></a>12. 线程特有数据(TSD: Thread-Specific Data)</h3>
+
+<p>在上面很多章节中都存在多个线程对共享对象的访问，那么究竟哪些数据是可以在线程间共享的，哪些数据又是每个线程所特有的呢？一般来说，<strong>堆区和静态区内存是可以在线程间进行共享的，而栈区内存是属于每个线程所特有的</strong>。以下详述几种常见情形。</p>
+
+<h4>
+<a id="121-静态成员变量在不同实例化对象间是线程共享的而非静态变量在不同实例化对象间是线程特有的" class="anchor" href="#121-%E9%9D%99%E6%80%81%E6%88%90%E5%91%98%E5%8F%98%E9%87%8F%E5%9C%A8%E4%B8%8D%E5%90%8C%E5%AE%9E%E4%BE%8B%E5%8C%96%E5%AF%B9%E8%B1%A1%E9%97%B4%E6%98%AF%E7%BA%BF%E7%A8%8B%E5%85%B1%E4%BA%AB%E7%9A%84%E8%80%8C%E9%9D%9E%E9%9D%99%E6%80%81%E5%8F%98%E9%87%8F%E5%9C%A8%E4%B8%8D%E5%90%8C%E5%AE%9E%E4%BE%8B%E5%8C%96%E5%AF%B9%E8%B1%A1%E9%97%B4%E6%98%AF%E7%BA%BF%E7%A8%8B%E7%89%B9%E6%9C%89%E7%9A%84" aria-hidden="true"><span class="octicon octicon-link"></span></a>12.1 静态成员变量在不同实例化对象间是线程共享的，而非静态变量在不同实例化对象间是线程特有的</h4>
+
+<p>这是由静态成员变量属于类，而非静态成员变量属于对象这一基本特性所决定的。事实上，即使在同一个线程中，情形也是完全一样的，因此这种情形和线程关系并不是很大，唯一需要注意的是对共享变量的多线程并发修改是需要加锁的，下同。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Foo</span> {
+    <span class="pl-k">private</span> <span class="pl-k">static</span> <span class="pl-k">volatile</span> <span class="pl-k">int</span> sharedInteger <span class="pl-k">=</span> <span class="pl-c1">0</span>; <span class="pl-c">//data shared among different threads</span>
+    <span class="pl-k">private</span> <span class="pl-k">int</span> notSharedInteger <span class="pl-k">=</span> <span class="pl-c1">0</span>; <span class="pl-c">//thread specific data</span>
+
+    <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> <span class="pl-en">increase</span>() {
+        sharedInteger<span class="pl-k">++</span>;
+        notSharedInteger<span class="pl-k">++</span>;
+    }
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">print</span>() {
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>sharedInteger = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> sharedInteger <span class="pl-k">+</span>
+                     <span class="pl-s"><span class="pl-pds">"</span>; notSharedInteger = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> notSharedInteger);
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-smi">Foo</span> foo1 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Foo</span>();
+<span class="pl-k">final</span> <span class="pl-smi">Foo</span> foo2 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Foo</span>();
+
+<span class="pl-smi">Thread</span> thread1 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+ <span class="pl-k">@Override</span>
+ <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+     foo1<span class="pl-k">.</span>increase();
+ }
+});
+
+<span class="pl-smi">Thread</span> thread2 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+ <span class="pl-k">@Override</span>
+ <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+     foo2<span class="pl-k">.</span>increase();
+ }
+});
+
+thread1<span class="pl-k">.</span>start();
+thread2<span class="pl-k">.</span>start();
+
+
+<span class="pl-k">try</span> {
+    thread1<span class="pl-k">.</span>join();
+    thread2<span class="pl-k">.</span>join();
+} <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+    e<span class="pl-k">.</span>printStackTrace();
+}
+
+<span class="pl-c">//now thread1 and thread2 finished running</span>
+foo1<span class="pl-k">.</span>print();
+foo2<span class="pl-k">.</span>print();</pre></div>
+
+<p>程序执行结果如下</p>
+
+<pre><code>09-18 12:17:51.155  15895-15895/? D/gyw﹕ sharedInteger = 2; notSharedInteger = 1
+09-18 12:17:51.155  15895-15895/? D/gyw﹕ sharedInteger = 2; notSharedInteger = 1
+</code></pre>
+
+<h4>
+<a id="122-非静态成员变量对同一个实例化对象是线程共享的" class="anchor" href="#122-%E9%9D%9E%E9%9D%99%E6%80%81%E6%88%90%E5%91%98%E5%8F%98%E9%87%8F%E5%AF%B9%E5%90%8C%E4%B8%80%E4%B8%AA%E5%AE%9E%E4%BE%8B%E5%8C%96%E5%AF%B9%E8%B1%A1%E6%98%AF%E7%BA%BF%E7%A8%8B%E5%85%B1%E4%BA%AB%E7%9A%84" aria-hidden="true"><span class="octicon octicon-link"></span></a>12.2 非静态成员变量对同一个实例化对象是线程共享的</h4>
+
+<p>非静态成员变量虽然在不同实例化对象是拥有自己的一份拷贝，然而对于同一个实例对象来说(譬如函数间)，它是线程共享的。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Foo</span> {
+    <span class="pl-k">private</span> <span class="pl-k">volatile</span> <span class="pl-k">int</span> sharedInteger <span class="pl-k">=</span> <span class="pl-c1">0</span>; <span class="pl-c">//data shared among different threads</span>
+
+    <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> <span class="pl-en">increase</span>() {
+        sharedInteger<span class="pl-k">++</span>;
+    }
+
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">print</span>() {
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>sharedInteger = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> sharedInteger);
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-smi">Foo</span> foo <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Foo</span>();
+
+ <span class="pl-smi">Thread</span> thread1 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+     <span class="pl-k">@Override</span>
+     <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+         foo<span class="pl-k">.</span>increase();
+     }
+ });
+
+ <span class="pl-smi">Thread</span> thread2 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+     <span class="pl-k">@Override</span>
+     <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+         foo<span class="pl-k">.</span>increase();
+     }
+ });
+
+ thread1<span class="pl-k">.</span>start();
+ thread2<span class="pl-k">.</span>start();
+
+
+ <span class="pl-k">try</span> {
+     thread1<span class="pl-k">.</span>join();
+     thread2<span class="pl-k">.</span>join();
+ } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+     e<span class="pl-k">.</span>printStackTrace();
+ }
+
+ <span class="pl-c">//now thread1 and thread2 finished running</span>
+ foo<span class="pl-k">.</span>print();</pre></div>
+
+<p>程序执行结果如下</p>
+
+<pre><code>09-18 12:26:18.905  16071-16071/? D/gyw﹕ sharedInteger = 2
+</code></pre>
+
+<h4>
+<a id="123-局部变量是线程特有的" class="anchor" href="#123-%E5%B1%80%E9%83%A8%E5%8F%98%E9%87%8F%E6%98%AF%E7%BA%BF%E7%A8%8B%E7%89%B9%E6%9C%89%E7%9A%84" aria-hidden="true"><span class="octicon octicon-link"></span></a>12.3 局部变量是线程特有的</h4>
+
+<p>局部变量位于栈区，因此是线程特有的。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Foo</span> {
+
+    <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> <span class="pl-en">increase</span>() {
+        <span class="pl-k">int</span> localVariable <span class="pl-k">=</span> <span class="pl-c1">0</span>;
+        localVariable<span class="pl-k">++</span>;
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>localVariable = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> localVariable);
+    }
+
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-smi">Foo</span> foo <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Foo</span>();
+
+<span class="pl-smi">Thread</span> thread1 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        foo<span class="pl-k">.</span>increase();
+    }
+});
+
+<span class="pl-smi">Thread</span> thread2 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        foo<span class="pl-k">.</span>increase();
+    }
+});
+
+thread1<span class="pl-k">.</span>start();
+thread2<span class="pl-k">.</span>start();</pre></div>
+
+<p>运行结果如下：</p>
+
+<pre><code>09-18 12:36:27.295  16281-16294/? D/gyw﹕ localVariable = 1
+09-18 12:36:27.295  16281-16295/? D/gyw﹕ localVariable = 1
+</code></pre>
+
+<h4>
+<a id="124-threadlocal对象" class="anchor" href="#124-threadlocal%E5%AF%B9%E8%B1%A1" aria-hidden="true"><span class="octicon octicon-link"></span></a>12.4 ThreadLocal对象</h4>
+
+<p><code>12.1节</code>说到静态成员变量在不同实例化对象间是线程共享的(当然对同一个实例化对象更是线程共享了)，<code>12.1节</code>非静态成员变量对同一个实例化对象是线程共享的。事实上使用<code>ThreadLocal</code>就可以将这些共享的成员变量变成线程特有的(也成为线程私有的)。<code>ThreadLocal</code>提供以下常见方法：</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-smi">T</span> get();  <span class="pl-c">//获取当前线程的ThreadLocal绑定值</span>
+<span class="pl-k">public</span> <span class="pl-k">void</span> set(<span class="pl-smi">T</span> value); <span class="pl-c">//设置当前线程的ThreadLocal绑定值</span>
+<span class="pl-k">public</span> <span class="pl-k">void</span> remove(); <span class="pl-c">//删除当前线程ThreadLocal绑定的值</span>
+<span class="pl-k">protected</span> <span class="pl-smi">T</span> initialValue() <span class="pl-c">//可以通过子类继承来初始化ThreadLocal变量值</span></pre></div>
+
+<p>以下举一个使用<code>ThreadLocal</code>的例子，通过这个例子就可以体会<code>ThreadLocal</code>如何将共享的成员变量线程特有化。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">Foo</span> {
+    <span class="pl-k">private</span> <span class="pl-k">static</span> <span class="pl-k">ThreadLocal&lt;<span class="pl-smi">Integer</span>&gt;</span> threadLocalInteger <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">ThreadLocal&lt;<span class="pl-smi">Integer</span>&gt;</span>() {
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">protected</span> <span class="pl-smi">Integer</span> <span class="pl-en">initialValue</span>() {
+            <span class="pl-k">return</span> <span class="pl-smi">Integer</span><span class="pl-k">.</span>valueOf(<span class="pl-c1">0</span>);
+        }
+    };
+
+    <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> <span class="pl-en">increase</span>() {
+        threadLocalInteger<span class="pl-k">.</span>set(threadLocalInteger<span class="pl-k">.</span>get() <span class="pl-k">+</span> <span class="pl-c1">1</span>);
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>threadLocalInteger = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> threadLocalInteger<span class="pl-k">.</span>get());
+    }
+
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-smi">Foo</span> foo <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Foo</span>();
+
+<span class="pl-smi">Thread</span> thread1 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        foo<span class="pl-k">.</span>increase();
+    }
+});
+
+<span class="pl-smi">Thread</span> thread2 <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">Thread</span>(<span class="pl-k">new</span> <span class="pl-smi">Runnable</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        foo<span class="pl-k">.</span>increase();
+    }
+});
+
+thread1<span class="pl-k">.</span>start();
+thread2<span class="pl-k">.</span>start();</pre></div>
+
+<p>运行结果如下</p>
+
+<pre><code>09-18 21:35:39.695  24036-24049/? D/gyw﹕ threadLocalInteger = 1
+09-18 21:35:39.695  24036-24050/? D/gyw﹕ threadLocalInteger = 1
+</code></pre>
+
+<p>运行结果清楚地表示出，尽管<code>threadLocalInteger</code>是一个静态变量，然而由于它是一个<code>ThreadLocal对象</code>，因而实现了线程特有化而成为线程特有数据。</p>
+
+<blockquote>
+<p><strong>Resource:</strong> 关于<code>ThreadLocal</code>更多的知识，可以访问以下网址：
+<a href="http://qifuguang.me/2015/09/02/%5BJava%E5%B9%B6%E5%8F%91%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%B8%83%5D%E8%A7%A3%E5%AF%86ThreadLocal/">http://qifuguang.me/2015/09/02/[Java%E5%B9%B6%E5%8F%91%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%B8%83]%E8%A7%A3%E5%AF%86ThreadLocal/</a></p>
+</blockquote>
+
+<h3>
+<a id="13-主线程与工作线程之间同步通信" class="anchor" href="#13-%E4%B8%BB%E7%BA%BF%E7%A8%8B%E4%B8%8E%E5%B7%A5%E4%BD%9C%E7%BA%BF%E7%A8%8B%E4%B9%8B%E9%97%B4%E5%90%8C%E6%AD%A5%E9%80%9A%E4%BF%A1" aria-hidden="true"><span class="octicon octicon-link"></span></a>13. 主线程与工作线程之间同步通信</h3>
+
+<p><code>1.1节</code>讲述了Java两种显式创建线程的方法，<code>第2节</code>讲述了如何使用线程池来在新线程中执行<code>Runnable</code>任务。当主线程不需要了解工作线程执行任务的情况，譬如结果，那么<code>第2节</code>的关于线程池的知识就已经足够了。然而，如果我们希望能在主线程中当工作线程结束时知道工作线程的任务结果，又能怎么办呢？本节将讲述使用<code>Callable</code>对象配合<code>Future</code>来实现这一点。  </p>
+
+<blockquote>
+<p><strong>Tip:</strong> 通过共享变量也可以做到这一点，但是一方面这破坏了封装性，另一方面在多线程中使用共享变量容易出错。使用<code>Callable</code>对象配合<code>Future</code>可以简单方便地实现主线程和工作线程之间的通信。</p>
+</blockquote>
+
+<p>在<code>第2节</code>介绍<code>ExecutorService</code>的时候，我们讲述了可以利用<code>execute(Runnable r)</code>方法来使用线程池执行<code>Runnable</code>任务。事实上，<code>ExecutorService</code>还有一个<code>Future&lt;T&gt; submit(Callable&lt;T&gt; task)</code>方法也可以利用线程池执行新线程任务，<code>T</code>是任务执行完成返回结果的类型。  </p>
+
+<h4>
+<a id="131-callable对象" class="anchor" href="#131-callable%E5%AF%B9%E8%B1%A1" aria-hidden="true"><span class="octicon octicon-link"></span></a>13.1 Callable对象</h4>
+
+<p>可以看到<code>submit()</code>方法可以接受一个<code>Callable</code>对象，类似于<code>Runnable</code>可以在其<code>run()</code>方法里写进那些需要在新线程中执行的代码，也可以在<code>Callable</code>的<code>call()</code>方法中写进那些需要在新线程中执行的代码。唯一不同的是<code>run()</code>方法没有返回值，而<code>call()</code>方法可以返回泛型类型为<code>T</code>的结果对象。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-c">//define callable</span>
+<span class="pl-k">Callable&lt;<span class="pl-smi">Integer</span>&gt;</span> callable <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">Callable&lt;<span class="pl-smi">Integer</span>&gt;</span>() {
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-smi">Integer</span> <span class="pl-en">call</span>() <span class="pl-k">throws</span> <span class="pl-smi">Exception</span> {
+        <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>call() is executed in worker thread<span class="pl-pds">"</span></span>);
+        <span class="pl-k">return</span> <span class="pl-c1">1</span>;
+    }
+};</pre></div>
+
+<h4>
+<a id="132-future" class="anchor" href="#132-future" aria-hidden="true"><span class="octicon octicon-link"></span></a>13.2 Future</h4>
+
+<p>另外我们可以看到<code>submit()</code>返回了一个<code>Future&lt;T&gt;</code>类型的对象，我们可以通过返回的这个<code>Future</code>对象来在主线程中获取工作线程的执行结果，事实上，通过<code>Future</code>可以允许我们做得更多。首先来看看<code>Future</code>接口。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">interface</span> <span class="pl-en">Future</span>&lt;V&gt; {
+    <span class="pl-c">//取消任务</span>
+    <span class="pl-k">boolean</span> <span class="pl-en">cancel</span>(<span class="pl-k">boolean</span> <span class="pl-v">mayInterruptIfRunning</span>);
+
+    <span class="pl-c">//获取任务是否已经被取消</span>
+    <span class="pl-k">boolean</span> <span class="pl-en">isCancelled</span>();
+
+    <span class="pl-c">//获取任务是否已完成</span>
+    <span class="pl-k">boolean</span> <span class="pl-en">isDone</span>();
+
+    <span class="pl-c">//获取任务执行结果，阻塞等待结果</span>
+    <span class="pl-smi">V</span> <span class="pl-en">get</span>() <span class="pl-k">throws</span> <span class="pl-smi">InterruptedException</span>, <span class="pl-smi">ExecutionException</span>;
+
+    <span class="pl-c">//获取任务执行结果，阻塞等待结果，若超时则get()直接返回null</span>
+    <span class="pl-smi">V</span> <span class="pl-en">get</span>(<span class="pl-k">long</span> <span class="pl-v">timeout</span>, <span class="pl-smi">TimeUnit</span> <span class="pl-v">unit</span>)
+        <span class="pl-k">throws</span> <span class="pl-smi">InterruptedException</span>, <span class="pl-smi">ExecutionException</span>, <span class="pl-smi">TimeoutException</span>;
+}</pre></div>
+
+<blockquote>
+<p><strong>Tip:</strong> <code>get()</code>方法是一个<strong>阻塞同步方法(Blocked Synchronous Method)</strong>，这意味着在主线程中对该方法的调用会使得主线程阻塞来等待工作线程返回结果，如果工作线程迟迟不返回结果，则主线程会一直被阻塞。</p>
+</blockquote>
+
+<p>这里举一个简单的例子，该例子将任务使用线程池分配给工作线程去做，然后主线程调用<code>get()</code>方法等待工作线程完成并返回执行结果。其中<code>callable</code>对象定义见<code>13.1</code>节。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-smi">ExecutorService</span> executor <span class="pl-k">=</span> <span class="pl-smi">Executors</span><span class="pl-k">.</span>newFixedThreadPool(<span class="pl-c1">1</span>);
+<span class="pl-k">Future&lt;<span class="pl-smi">Integer</span>&gt;</span> result <span class="pl-k">=</span> executor<span class="pl-k">.</span>submit(callable);
+
+<span class="pl-k">try</span> {
+    <span class="pl-c">//main thread is blocked to wait for result from worker thread</span>
+    <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>result = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> result<span class="pl-k">.</span>get());
+} <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> e) {
+    e<span class="pl-k">.</span>printStackTrace();
+} <span class="pl-k">catch</span> (<span class="pl-smi">ExecutionException</span> e) {
+    e<span class="pl-k">.</span>printStackTrace();
+}
+
+<span class="pl-c">//this won't be logged until the result is returned from worker thread</span>
+<span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>main thread done all works<span class="pl-pds">"</span></span>);</pre></div>
+
+<p>程序运行结果如下</p>
+
+<pre><code>09-18 22:04:06.355  24500-24513/? I/gyw﹕ TID:8451; call() is executed in worker thread
+09-18 22:04:06.355  24500-24500/? I/gyw﹕ TID:1; result = 1
+09-18 22:04:06.355  24500-24500/? I/gyw﹕ TID:1; main thread done all works
+</code></pre>
+
+<h4>
+<a id="133-利用多线程计算fibonacci数列" class="anchor" href="#133-%E5%88%A9%E7%94%A8%E5%A4%9A%E7%BA%BF%E7%A8%8B%E8%AE%A1%E7%AE%97fibonacci%E6%95%B0%E5%88%97" aria-hidden="true"><span class="octicon octicon-link"></span></a>13.3 利用多线程计算Fibonacci数列</h4>
+
+<p>先来看下单线程计算Fibonacci数列的情形，最简单的版本是可以利用递归去实现，从算法角度来讲就是<strong>分治法(Divide and Conquer)</strong>。由于计算数列算法本身非常简单，直接给出递归实现的代码。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">long</span> computeRecursively(<span class="pl-k">int</span> n) {
+    <span class="pl-k">if</span> (n <span class="pl-k">&gt;</span> <span class="pl-c1">1</span>) {
+        <span class="pl-k">return</span> computeRecursively(n<span class="pl-k">-</span><span class="pl-c1">1</span>) <span class="pl-k">+</span> computeRecursively(n<span class="pl-k">-</span><span class="pl-c1">2</span>);
+    }
+    <span class="pl-k">return</span> n;
+}</pre></div>
+
+<p>事实上容易知道上面计算方法的时间复杂度是<strong>指数级</strong>的，这意味着当n较大的时候，计算时间将非常恐怖。为了直观对比各算法的性能，使用下面一小段代码才测量cpu执行时间并在驱动代码中将n设置为30。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">long</span> startTime <span class="pl-k">=</span> <span class="pl-smi">Debug</span><span class="pl-k">.</span>threadCpuTimeNanos();
+<span class="pl-k">long</span> result <span class="pl-k">=</span> computeRecursively(<span class="pl-c1">30</span>);
+<span class="pl-k">long</span> duration_ns <span class="pl-k">=</span> <span class="pl-smi">Debug</span><span class="pl-k">.</span>threadCpuTimeNanos() <span class="pl-k">-</span> startTime;
+<span class="pl-k">long</span> duration_ms <span class="pl-k">=</span> duration_ns <span class="pl-k">/</span> <span class="pl-c1">1000000</span>;
+<span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>result = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> result <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>; duration = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> duration_ns <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>ns = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> duration_ms <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>ms<span class="pl-pds">"</span></span>);</pre></div>
+
+<p>在作者的Android机器上，运行结果如下：</p>
+
+<pre><code>09-19 08:03:34.995  32488-32488/? D/gyw﹕ result = 832040; duration = 357233029ns = 357ms
+</code></pre>
+
+<p>可以看到当计算第30项值的时候，机器就已经显得步履维艰了。考虑一个不那么困难的改进方案，在递归过程中计算<code>第n项</code>数列值的时候，事实上递归调用了计算<code>第n-1项</code>和<code>第n-2项</code>的值；而譬如计算<code>第n-1项</code>值时又会递归计算<code>第n-2项</code>值，这造成了大量的重复计算，事实上前面算法效率低下的症结就是在这个地方，cpu将计算时间几乎完全耗费在了一次又一次重复计算递归项上了。一个简单的改进就是在计算中将每次计算的值记录下来，在需要的时候取用，如果存取是高效的，那么必然效率会有质的跃升。这样改进后的算法就是<strong>动态规划(Dynamic programming)</strong>了，具体地说是使用了<strong>备忘录(memo)</strong>技术的动态规划算法。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> 也可以使用从第一项至最后一项<strong>迭代</strong>计算技术来实现动态规划算法，而且效率通常会更高一点。这里是为了算法横向改进对比的方便采用<strong>备忘录</strong>技术。当然两种技术细节对<strong>时间复杂度的阶(Order)</strong>没有任何影响，只微弱影响时间复杂度的常数因子。</p>
+</blockquote>
+
+<p>下面就利用Android中的<code>SparseArray</code>来作为缓存数组实现<strong>备忘录</strong>技术，代码如下：</p>
+
+<div class="highlight highlight-source-java"><pre>    <span class="pl-k">private</span> <span class="pl-k">SparseArray&lt;<span class="pl-smi">Long</span>&gt;</span> cache <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">SparseArray&lt;&gt;</span>();
+
+    <span class="pl-k">public</span> <span class="pl-k">long</span> computeRecursively(<span class="pl-k">int</span> n) {
+        <span class="pl-k">if</span> (n <span class="pl-k">&gt;</span> <span class="pl-c1">1</span>) {
+            <span class="pl-smi">Long</span> fac1 <span class="pl-k">=</span> cache<span class="pl-k">.</span>get(n<span class="pl-k">-</span><span class="pl-c1">1</span>);
+            <span class="pl-smi">Long</span> fac2 <span class="pl-k">=</span> cache<span class="pl-k">.</span>get(n<span class="pl-k">-</span><span class="pl-c1">2</span>);
+
+            <span class="pl-k">if</span> (fac1 <span class="pl-k">==</span> <span class="pl-c1">null</span>) {
+                fac1 <span class="pl-k">=</span> computeRecursively(n<span class="pl-k">-</span><span class="pl-c1">1</span>);
+                cache<span class="pl-k">.</span>put(n<span class="pl-k">-</span><span class="pl-c1">1</span>, fac1);
+            }
+
+            <span class="pl-k">if</span> (fac2 <span class="pl-k">==</span> <span class="pl-c1">null</span>) {
+                fac2 <span class="pl-k">=</span> computeRecursively(n<span class="pl-k">-</span><span class="pl-c1">2</span>);
+                cache<span class="pl-k">.</span>put(n<span class="pl-k">-</span><span class="pl-c1">2</span>, fac2);
+            }
+
+            <span class="pl-k">return</span> fac1 <span class="pl-k">+</span> fac2;
+        }
+        <span class="pl-k">return</span> n;
+    }</pre></div>
+
+<blockquote>
+<p><strong>Tip:</strong> 也可以使用Java中的<code>HashMap</code>来作为缓存，这样通用性会更好一点，Android的<code>SparseArray</code>相对效率更高一些。</p>
+</blockquote>
+
+<p>同样条件下让我们来看看Android机器上的运行结果吧。</p>
+
+<pre><code>09-19 08:13:26.205  32678-32678/? D/gyw﹕ result = 832040; duration = 297742ns = 0ms
+</code></pre>
+
+<p>对我们设定的条件下，执行效率提高了<strong>1200倍</strong>，<strong>哇！令人印象深刻啊！</strong>。从算法时间复杂度上来说，第二种算法是<strong>线性</strong>的，即<strong>O(n)</strong>，难怪会如此高效。<br>
+那么是否可以进一步榨干cpu的运算性能呢？对于多核cpu，也许我们可以使用多线程来进一步提高性能。当然这里说的是也许，如果我们可以将并行的计算置于不同的cpu核心上去运行，那也许有可能我们就提高了整体的性能。在试图实现我们这个想法，先把刚才那个令人印象深刻的迭代算法做些许改进，之所以需要改进是因为当计算数列的项n太大时(譬如<code>n = 100</code>)，使用<code>Long</code>来存储会出现溢出而无法得到正确的结果，这里简单使用<code>BigInteger</code>来替代<code>Long</code>。改进后的代码如下：</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-smi">BigInteger</span> computeRecursively(<span class="pl-k">int</span> n) {
+    <span class="pl-k">if</span> (n <span class="pl-k">&gt;</span> <span class="pl-c1">1</span>) {
+        <span class="pl-smi">BigInteger</span> fac1 <span class="pl-k">=</span> cache<span class="pl-k">.</span>get(n<span class="pl-k">-</span><span class="pl-c1">1</span>);
+        <span class="pl-smi">BigInteger</span> fac2 <span class="pl-k">=</span> cache<span class="pl-k">.</span>get(n<span class="pl-k">-</span><span class="pl-c1">2</span>);
+
+        <span class="pl-k">if</span> (fac1 <span class="pl-k">==</span> <span class="pl-c1">null</span>) {
+            fac1 <span class="pl-k">=</span> computeRecursively(n<span class="pl-k">-</span><span class="pl-c1">1</span>);
+            cache<span class="pl-k">.</span>put(n<span class="pl-k">-</span><span class="pl-c1">1</span>, fac1);
+        }
+
+        <span class="pl-k">if</span> (fac2 <span class="pl-k">==</span> <span class="pl-c1">null</span>) {
+            fac2 <span class="pl-k">=</span> computeRecursively(n<span class="pl-k">-</span><span class="pl-c1">2</span>);
+            cache<span class="pl-k">.</span>put(n<span class="pl-k">-</span><span class="pl-c1">2</span>, fac2);
+        }
+
+        <span class="pl-k">return</span> fac1<span class="pl-k">.</span>add(fac2);
+    }
+    <span class="pl-k">return</span> (n <span class="pl-k">==</span> <span class="pl-c1">0</span>) <span class="pl-k">?</span> <span class="pl-smi">BigInteger</span><span class="pl-c1"><span class="pl-k">.</span>ZERO</span> <span class="pl-k">:</span> <span class="pl-smi">BigInteger</span><span class="pl-c1"><span class="pl-k">.</span>ONE</span>;
+}</pre></div>
+
+<p>一个可能的利用多线程来改进效率来自于这样的事实，计算<code>第n项</code>数列值的时候，事实上需要计算<code>第n-1项</code>和<code>第n-2项</code>的值，可以将<code>第n-1项</code>和<code>第n-2项</code>放到不同的线程来进行计算(当然只有放到不同核心才是真正的多核并发)。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> 将并发计算分配到多线程并不一定意味着cpu会将其调度到不同核心上去进行计算，这取决于操作系统的调度算法。一个好的消息就是对于Android来说，这样的核心调度算法是优化的，而且随着版本提高还在不断优化中，当然操作系统也需要照顾到别的程序的运行。同一时间并不只存在你所写的那一个程序在执行。</p>
+</blockquote>
+
+<p>基于这样的想法，可以写出如下的多线程计算Fibonacci数列的代码</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">private</span> <span class="pl-k">ConcurrentHashMap&lt;<span class="pl-smi">Integer</span>, <span class="pl-smi">BigInteger</span>&gt;</span> cache <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">ConcurrentHashMap&lt;<span class="pl-smi">Integer</span>, <span class="pl-smi">BigInteger</span>&gt;</span>();
+
+<span class="pl-k">public</span> <span class="pl-smi">BigInteger</span> computeRecursively(<span class="pl-k">int</span> n) {
+   <span class="pl-c">//The same as before</span>
+}
+
+<span class="pl-k">private</span> <span class="pl-k">static</span> <span class="pl-k">final</span> <span class="pl-k">int</span> <span class="pl-c1">CPU_NUM</span> <span class="pl-k">=</span> <span class="pl-smi">Runtime</span><span class="pl-k">.</span>getRuntime()<span class="pl-k">.</span>availableProcessors();
+<span class="pl-k">private</span> <span class="pl-smi">ExecutorService</span> executorService <span class="pl-k">=</span> <span class="pl-smi">Executors</span><span class="pl-k">.</span>newFixedThreadPool(<span class="pl-c1">CPU_NUM</span> <span class="pl-k">+</span> <span class="pl-c1">1</span>);
+
+<span class="pl-k">public</span> <span class="pl-smi">BigInteger</span> computeRecursivelyWithTwoThreads(<span class="pl-k">final</span> <span class="pl-k">int</span> n) {
+    <span class="pl-k">Callable&lt;<span class="pl-smi">BigInteger</span>&gt;</span> callable <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">Callable&lt;<span class="pl-smi">BigInteger</span>&gt;</span>() {
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">public</span> <span class="pl-smi">BigInteger</span> <span class="pl-en">call</span>() <span class="pl-k">throws</span> <span class="pl-smi">Exception</span> {
+            <span class="pl-k">return</span> computeRecursively(n<span class="pl-k">-</span><span class="pl-c1">1</span>);
+        }
+    };
+
+    <span class="pl-k">Future&lt;<span class="pl-smi">BigInteger</span>&gt;</span> fac1 <span class="pl-k">=</span> executorService<span class="pl-k">.</span>submit(callable); <span class="pl-c">//submit first task ASAP</span>
+
+    callable <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-k">Callable&lt;<span class="pl-smi">BigInteger</span>&gt;</span>() {
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">public</span> <span class="pl-smi">BigInteger</span> <span class="pl-en">call</span>() <span class="pl-k">throws</span> <span class="pl-smi">Exception</span> {
+            <span class="pl-k">return</span> computeRecursively(n<span class="pl-k">-</span><span class="pl-c1">2</span>);
+        }
+    };
+
+    <span class="pl-k">Future&lt;<span class="pl-smi">BigInteger</span>&gt;</span> fac2 <span class="pl-k">=</span> executorService<span class="pl-k">.</span>submit(callable); <span class="pl-c">//submit second task</span>
+
+    <span class="pl-k">try</span> {
+        <span class="pl-c">//combine results</span>
+        <span class="pl-k">return</span> fac1<span class="pl-k">.</span>get()<span class="pl-k">.</span>add(fac2<span class="pl-k">.</span>get());
+    } <span class="pl-k">catch</span> (<span class="pl-smi">InterruptedException</span> <span class="pl-k">|</span> <span class="pl-smi">ExecutionException</span> e) {
+        e<span class="pl-k">.</span>printStackTrace();
+        <span class="pl-k">return</span> <span class="pl-smi">BigInteger</span><span class="pl-k">.</span>valueOf(<span class="pl-k">-</span><span class="pl-c1">1</span>); <span class="pl-c">//if fails</span>
+    }
+}</pre></div>
+
+<p>由于多个线程会对<code>cache</code>值进行访问，因此存在并发访问问题，这里使用<code>ConcurrentHashMap</code>来解决<code>cache</code>的并发访问问题，使得<code>cache</code>是线程安全的。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> 对于多线程，设置多少个线程数合适的问题，这个依赖具体情况。一个指导原则是<br>
+1. 对CPU密集任务，设置线程数为 <strong>CPU_NUM + 1</strong>；<br>
+2. 对于I/O密集任务， 设置线程数为 <strong>2 * CPU_NUM</strong>。  </p>
+</blockquote>
+
+<p>到了这里，似乎一切都很完美，然而还差一个问题，使用多线程写出来的程序真的效率比单线程高很多么？不得不泼一盆凉水，尽管代码变复杂了，愿望也是美好的，然而事实往往不尽如人意。在两核cpu上执行效率非但往往达不到单线程单核cpu的2倍，<strong>很多情况下比单线程效率还要低下</strong>！这一方面由于线程创建、调度、销毁需要费事费力，cpu调度算法也要消耗计算资源，更因为很多时候由于并发、同步等问题使得线程不得不阻塞等待，这些都导致了多线程效率的低下。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> 这样的事实再次告诫我们，只有在需要优化的情况下才考虑对效率的优化，并且<strong>优化的首要步骤是改进算法而不是改进实现</strong>，通常项目进度、异常处理、代码的可维护性是更重要的因子，<strong>优化需要抱着务实的态度</strong>。</p>
+</blockquote>
+
+<p>当然我们也不应该过分悲观，很多时候使用多线程确实可以提高程序的效率，实践表明，那些可以并发执行的任务，即<strong>不需要大量同步需求的并行执行任务是适合多线程的</strong>，而且通常来说由于各种开销缘故，<strong>只有当问题规模较大的时候才适合进行多线程</strong>，当问题规模小的时候往往应该调用单线程版本，后者的考量类似于快速排序在规模较小时候应该直接调用简单排序算法来实现。<br>
+最后还是让我们来看一下我们使用多线程改进的算法与单线程的算法在实际运行中的效率对比吧。驱动和测量时间的代码如下：</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">final</span> <span class="pl-k">int</span> <span class="pl-smi">N</span> <span class="pl-k">=</span> <span class="pl-c1">30</span>; <span class="pl-c">//we test 30, 128 and 400</span>
+
+<span class="pl-smi">BigInteger</span> result <span class="pl-k">=</span> <span class="pl-smi">BigInteger</span><span class="pl-k">.</span>valueOf(<span class="pl-k">-</span><span class="pl-c1">2</span>);
+
+<span class="pl-k">long</span> startTime <span class="pl-k">=</span> <span class="pl-smi">Debug</span><span class="pl-k">.</span>threadCpuTimeNanos();
+<span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">50</span>; <span class="pl-k">++</span>i) {
+   result <span class="pl-k">=</span> computeRecursively(<span class="pl-smi">N</span>);
+}
+<span class="pl-k">long</span> duration_ns <span class="pl-k">=</span> <span class="pl-smi">Debug</span><span class="pl-k">.</span>threadCpuTimeNanos() <span class="pl-k">-</span> startTime;
+<span class="pl-k">long</span> duration_ms <span class="pl-k">=</span> duration_ns <span class="pl-k">/</span> <span class="pl-c1">1000000</span>;
+<span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>result = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> result <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span> computeRecursively; duration = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> duration_ns <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>ns = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> duration_ms <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>ms<span class="pl-pds">"</span></span>);
+
+startTime <span class="pl-k">=</span> <span class="pl-smi">Debug</span><span class="pl-k">.</span>threadCpuTimeNanos();
+<span class="pl-k">for</span> (<span class="pl-k">int</span> i <span class="pl-k">=</span> <span class="pl-c1">0</span>; i <span class="pl-k">&lt;</span> <span class="pl-c1">50</span>; <span class="pl-k">++</span>i) {
+    result <span class="pl-k">=</span> computeRecursivelyWithTwoThreads(<span class="pl-smi">N</span>);
+}
+duration_ns <span class="pl-k">=</span> <span class="pl-smi">Debug</span><span class="pl-k">.</span>threadCpuTimeNanos() <span class="pl-k">-</span> startTime;
+duration_ms <span class="pl-k">=</span> duration_ns <span class="pl-k">/</span> <span class="pl-c1">1000000</span>;
+<span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>result = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> result <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span> computeRecursivelyWithTwoThreads; duration = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> duration_ns <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>ns = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> duration_ms <span class="pl-k">+</span> <span class="pl-s"><span class="pl-pds">"</span>ms<span class="pl-pds">"</span></span>);</pre></div>
+
+<p>我们改变问题规模N，测试当N分别为30，128和400情况下，程序在机器上执行的结果(<code>CPU_NUM = 4</code>)。</p>
+
+<pre><code>//N = 30
+09-19 09:58:25.205    4381-4381/? D/gyw﹕ result = 832040 computeRecursively; duration = 1874932ns = 1ms
+09-19 09:58:25.215    4381-4381/? D/gyw﹕ result = 832040 computeRecursivelyWithTwoThreads; duration = 5444422ns = 5ms
+
+//N = 128
+09-19 10:00:46.655    4473-4473/? D/gyw﹕ result = 251728825683549488150424261 computeRecursively; duration = 5750731ns = 5ms
+09-19 10:00:46.665    4473-4473/? D/gyw﹕ result = 251728825683549488150424261 computeRecursivelyWithTwoThreads; duration = 4643587ns = 4ms
+
+//N = 400
+09-19 10:01:02.375    4539-4539/? D/gyw﹕ result = 176023680645013966468226945392411250770384383304492191886725992896575345044216019675 computeRecursively; duration = 17544497ns = 17ms
+09-19 10:01:02.385    4539-4539/? D/gyw﹕ result = 176023680645013966468226945392411250770384383304492191886725992896575345044216019675 computeRecursivelyWithTwoThreads; duration = 5307339ns = 5ms
+</code></pre>
+
+<p>从测试的结果中我们可以看出，当问题规模较小的时候，单线程的执行效率更高；当问题规模趋于增大的时候，多线程的优势逐渐显现，知道<code>N = 400</code>的时候，多线程执行效率高出了单线程的3倍还多。</p>
+
+<h3>
+<a id="14-主线程与工作线程之间异步通信" class="anchor" href="#14-%E4%B8%BB%E7%BA%BF%E7%A8%8B%E4%B8%8E%E5%B7%A5%E4%BD%9C%E7%BA%BF%E7%A8%8B%E4%B9%8B%E9%97%B4%E5%BC%82%E6%AD%A5%E9%80%9A%E4%BF%A1" aria-hidden="true"><span class="octicon octicon-link"></span></a>14. 主线程与工作线程之间异步通信</h3>
+
+<p>上一节说到了主线程与工作线程之间可以通过<code>Callable</code>和<code>Future</code>进行同步通信，主线程会阻塞自己等待工作线程的执行结果。然而这样的同步通信在很多情况下是不合适的，如果主线程负载其他重要工作而不得挂起等待工作线程结束以后才继续执行，这一方面影响了主线程执行效率，更会影响到其他在主线程中的重要工作的执行。在Android中，这一点尤为明显，主线程主要负责UI工作，如果主线程被阻塞等待，则UI会失去响应，这将严重影响用户体验。更何况Android为了强化这一点，强制要求在<code>Activity</code>中主线程不能被持有超过5s，<code>Service</code>中主线程不能被持有超过10s，一旦超过，Android系统就会抛出<code>ANR</code>异常。<br>
+异步通信就可以解决这样的问题，使得主线程执行效率得到提高并且可以始终响应譬如UI事件这样更重要的工作。工作线程在完成工作后通知主线程工作已完成并将结果以某种方式告知主线程，主线程拿到结果以后可以用来譬如刷新UI显示。</p>
+
+<blockquote>
+<p><strong>Tip:</strong> Android规定对UI的操作必须在主线程内完成，因此有时候主线程也会被称为<strong>UI线程</strong>。</p>
+</blockquote>
+
+<p>下面就来看一下Android中封装的<code>AsyncTask</code>类，这个类是多线程异步通信的典范。</p>
+
+<h4>
+<a id="141-asynctask类" class="anchor" href="#141-asynctask%E7%B1%BB" aria-hidden="true"><span class="octicon octicon-link"></span></a>14.1 AsyncTask类</h4>
+
+<p><code>AsyncTask</code>类强化了这样的封装：将需要处理的事情方法到新建的工作线程中去做，当工作完成后将结果发送给主线程，在主线程中刷新UI。<code>AsyncTask</code>类会自动创建工作线程，发送结果也是封装好的，使用者只需要覆写几个方法就可以了，现在具体来看一看这几个方法。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MyAsyncTask</span> <span class="pl-k">extends</span> <span class="pl-e">AsyncTask&lt;<span class="pl-smi">Integer</span>, <span class="pl-smi">Void</span>, <span class="pl-smi">BigInteger</span>&gt;</span> {
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">protected</span> <span class="pl-smi">BigInteger</span> <span class="pl-en">doInBackground</span>(<span class="pl-smi">Integer</span>... <span class="pl-v">integers</span>) {
+        <span class="pl-c">//Work in worker thread</span>
+        <span class="pl-c">//publishProgress() method can be applied here to inform execution progress</span>
+        <span class="pl-k">return</span> <span class="pl-c1">null</span>;
+    }
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">protected</span> <span class="pl-k">void</span> <span class="pl-en">onPreExecute</span>() {
+        <span class="pl-v">super</span><span class="pl-k">.</span>onPreExecute();
+        <span class="pl-c">//Work in main thread</span>
+        <span class="pl-c">//This method is called before worker thread begins</span>
+    }
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">protected</span> <span class="pl-k">void</span> <span class="pl-en">onPostExecute</span>(<span class="pl-smi">BigInteger</span> <span class="pl-v">bigInteger</span>) {
+        <span class="pl-v">super</span><span class="pl-k">.</span>onPostExecute(bigInteger);
+        <span class="pl-c">//Work in main thread</span>
+        <span class="pl-c">//This method is called after worker thread finishes</span>
+        <span class="pl-c">//Para is the worker thread execution result</span>
+        <span class="pl-c">//UI is refreshed here</span>
+    }
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">protected</span> <span class="pl-k">void</span> <span class="pl-en">onProgressUpdate</span>(<span class="pl-smi">Void</span>... <span class="pl-v">values</span>) {
+        <span class="pl-v">super</span><span class="pl-k">.</span>onProgressUpdate(values);
+        <span class="pl-c">//Work in main thread</span>
+        <span class="pl-c">//Got called when publishProgress() is invoked</span>
+    }
+}</pre></div>
+
+<p><code>AsyncTask</code>类需要指定泛型参数类型，分别对应于<strong>工作线程传入参数类型</strong>(<code>doInBackground()</code>传入参数)、<strong>工作线程执行中刷新参数值</strong>(<code>onProgressUpdate()</code>参数值)和<strong>工作线程返回结果类型</strong>(<code>doInBackground()</code>返回值和<code>onPostExecute()</code>参数)。<br>
+<code>doInBackground()</code>里面就是需要在工作线程中执行的代码，并将结果返回给主线程，从而可以在<code>onPostExecute()</code>中将执行结果刷新到UI，事实上除了<code>doInBackground()</code>方法执行在工作线程，其他几个方法都执行在主线程上。<br>
+下面就给出一个使用<code>AsyncTask</code>计算Fibonacci数列并将结果刷新到<code>TextView</code>上显示的简单例子。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MyAsyncTask</span> <span class="pl-k">extends</span> <span class="pl-e">AsyncTask&lt;<span class="pl-smi">Integer</span>, <span class="pl-smi">Void</span>, <span class="pl-smi">BigInteger</span>&gt;</span> {
+
+    <span class="pl-k">private</span> <span class="pl-smi">TextView</span> mTextView;
+
+    <span class="pl-k">public</span> <span class="pl-en">MyAsyncTask</span>(<span class="pl-smi">TextView</span> <span class="pl-v">mTextView</span>) {
+        <span class="pl-v">this</span><span class="pl-k">.</span>mTextView <span class="pl-k">=</span> mTextView;
+    }
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">protected</span> <span class="pl-smi">BigInteger</span> <span class="pl-en">doInBackground</span>(<span class="pl-smi">Integer</span>... <span class="pl-v">n</span>) {
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>MyAsyncTask::doInBackground()<span class="pl-pds">"</span></span>);
+        <span class="pl-k">return</span> computeRecursively(n[<span class="pl-c1">0</span>]);  <span class="pl-c">//See Chapter 13.3</span>
+    }
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">protected</span> <span class="pl-k">void</span> <span class="pl-en">onPreExecute</span>() {
+        <span class="pl-v">super</span><span class="pl-k">.</span>onPreExecute();
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>MyAsyncTask::onPreExecute()<span class="pl-pds">"</span></span>);
+    }
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">protected</span> <span class="pl-k">void</span> <span class="pl-en">onPostExecute</span>(<span class="pl-smi">BigInteger</span> <span class="pl-v">result</span>) {
+        <span class="pl-v">super</span><span class="pl-k">.</span>onPostExecute(result);
+        <span class="pl-smi">Log</span><span class="pl-k">.</span>d(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>, <span class="pl-s"><span class="pl-pds">"</span>MyAsyncTask::onPostExecute(); result = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> result);
+        mTextView<span class="pl-k">.</span>setText(result<span class="pl-k">.</span>toString()); <span class="pl-c">//update textView</span>
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MainActivity</span> <span class="pl-k">extends</span> <span class="pl-e">AppCompatActivity</span> {
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">protected</span> <span class="pl-k">void</span> <span class="pl-en">onCreate</span>(<span class="pl-smi">Bundle</span> <span class="pl-v">savedInstanceState</span>) {
+        <span class="pl-v">super</span><span class="pl-k">.</span>onCreate(savedInstanceState);
+        setContentView(<span class="pl-smi">R</span><span class="pl-k">.</span>layout<span class="pl-k">.</span>activity_main);
+
+        <span class="pl-smi">TextView</span> textView <span class="pl-k">=</span> (<span class="pl-smi">TextView</span>) findViewById(<span class="pl-smi">R</span><span class="pl-k">.</span>id<span class="pl-k">.</span>display);
+
+        <span class="pl-smi">MyAsyncTask</span> myAsyncTask <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">MyAsyncTask</span>(textView);
+        myAsyncTask<span class="pl-k">.</span>execute(<span class="pl-c1">30</span>);
+    }
+
+}</pre></div>
+
+<p>顺便看下<code>LogCat</code>日志</p>
+
+<pre><code>09-20 09:56:38.754  23657-23657/? I/gyw﹕ TID:1; MyAsyncTask::onPreExecute()
+09-20 09:56:38.754  23657-23670/? I/gyw﹕ TID:8865; MyAsyncTask::doInBackground()
+09-20 09:56:38.764  23657-23657/? I/gyw﹕ TID:1; MyAsyncTask::onPostExecute(); result = 832040
+</code></pre>
+
+<blockquote>
+<p><strong>Warning:</strong> 需要指出的是给出的<code>Demo</code>例子当遇到<code>Configuration Change</code>的时候(譬如屏幕旋转)是有bug的，潜在的bug包括<code>onCreate()</code>会重新被调用从而使得第一次的任务没有完成或者取消的情况下，又执行一次同样的任务。另外，更大的问题在于<code>MyAsyncTask</code>的中的<code>mTextView</code>将仍然指向第一次创建的<code>Activity</code>，这使得刷新UI存在潜在问题，另外也造成了第一次创建的<code>Activity</code>内存泄露了。这些问题的解决并非本文的重点，也超出本文的范畴，这里不再赘述。</p>
+</blockquote>
+
+<h4>
+<a id="142-handlerlooper与消息队列1" class="anchor" href="#142-handlerlooper%E4%B8%8E%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%971" aria-hidden="true"><span class="octicon octicon-link"></span></a>14.2 Handler、Looper与消息队列(1)</h4>
+
+<p><code>AsyncTask</code>类虽然是多线程异步通信的典范，其最大优点便是使用简单，但是过多的封装也造成灵活性的下降，另外当存在多个工作线程时代码也显得非常臃肿。事实上<code>AysncTask</code>实现中就是使用了<code>Handler</code>、<code>Looper</code>和消息队列。为了厘清<code>Handler</code>、<code>Looper</code>和消息队列之间的关系，先来看一个关系图。</p>
+
+<p><img src="https://lh3.googleusercontent.com/-8TW7OiMn5g4/Vf4ayHT9uoI/AAAAAAAAA9w/RC5xaQXDHC0/s640-Ic42/192914506.png" alt=""></p>
+
+<p>这个关系图清晰地展示了主线程和工作线程如何通过<code>Handler</code>、<code>Looper</code>和消息队列进行通信的，当然这里展示的仅仅是工作线程向主线程发送消息，而这正是<code>AsyncTask</code>所抽象的东西。<br>
+每一个<code>Looper</code>会直接维护一个消息队列并启动消息队列循环，即不断取出消息来消化。图中的<code>Looper</code>是主线程的<code>Looper</code>，而消息是不断发往主线程的消息队列中等待主线程处理的。而工作线程正是通过主线程的<code>Handler</code>来将消息发往主线程的消息队列。<br>
+下面就用一个<code>Demo</code>来实现与<code>14.1节</code>用<code>AsyncTask</code>来实现的完全一样的功能，只不过这一次，我们自己来创建工作线程去执行任务，执行完任务我们自己使用<code>Handler</code>将消息发送回主线程，并让主线程去刷新UI。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MyThreadTask</span> <span class="pl-k">extends</span> <span class="pl-e">Thread</span> {
+
+    <span class="pl-k">public</span> <span class="pl-k">static</span> <span class="pl-k">final</span> <span class="pl-k">int</span> <span class="pl-c1">MYTHREADTASK_RESULT</span> <span class="pl-k">=</span> 0X001;
+
+    <span class="pl-k">private</span> <span class="pl-k">int</span> n;
+    <span class="pl-k">private</span> <span class="pl-smi">Handler</span> mainThreadHandler <span class="pl-k">=</span> <span class="pl-c1">null</span>;
+
+    <span class="pl-k">public</span> <span class="pl-en">MyThreadTask</span>(<span class="pl-smi">Handler</span> <span class="pl-v">mainThreadHandler</span>, <span class="pl-k">int</span> <span class="pl-v">n</span>) {
+        <span class="pl-v">this</span><span class="pl-k">.</span>mainThreadHandler <span class="pl-k">=</span> mainThreadHandler;
+        <span class="pl-v">this</span><span class="pl-k">.</span>n <span class="pl-k">=</span> n;
+    }
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">run</span>() {
+        <span class="pl-v">super</span><span class="pl-k">.</span>run();
+        <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>MyThreadTask::run()<span class="pl-pds">"</span></span>);
+        <span class="pl-smi">BigInteger</span> result <span class="pl-k">=</span> computeRecursively(n);
+        mainThreadHandler<span class="pl-k">.</span>sendMessage(mainThreadHandler<span class="pl-k">.</span>obtainMessage(<span class="pl-c1">MYTHREADTASK_RESULT</span>, result));
+    }
+}</pre></div>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MainActivity</span> <span class="pl-k">extends</span> <span class="pl-e">AppCompatActivity</span> {
+
+    <span class="pl-k">private</span> <span class="pl-k">static</span> <span class="pl-k">class</span> <span class="pl-en">SimpleHandler</span> <span class="pl-k">extends</span> <span class="pl-e">Handler</span> {
+        <span class="pl-c">// If outter-context will be referred; consider using weak reference to avoid context memory leak</span>
+        <span class="pl-k">private</span> <span class="pl-smi">TextView</span> mtextView;
+
+        <span class="pl-k">public</span> <span class="pl-en">SimpleHandler</span>(<span class="pl-smi">TextView</span> <span class="pl-v">mtextView</span>) {
+            <span class="pl-v">this</span><span class="pl-k">.</span>mtextView <span class="pl-k">=</span> mtextView;
+        }
+
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">handleMessage</span>(<span class="pl-smi">Message</span> <span class="pl-v">msg</span>) {
+            <span class="pl-v">super</span><span class="pl-k">.</span>handleMessage(msg);
+            <span class="pl-k">switch</span> (msg<span class="pl-k">.</span>what) {
+                <span class="pl-k">case</span> <span class="pl-smi">MyThreadTask</span><span class="pl-c1"><span class="pl-k">.</span>MYTHREADTASK_RESULT</span><span class="pl-k">:</span>
+                    <span class="pl-c">//digest result</span>
+                    <span class="pl-smi">BigInteger</span> result <span class="pl-k">=</span> (<span class="pl-smi">BigInteger</span>) msg<span class="pl-k">.</span>obj;
+                    <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>message recieved; result = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> result<span class="pl-k">.</span>toString());
+                    mtextView<span class="pl-k">.</span>setText(result<span class="pl-k">.</span>toString());
+                    <span class="pl-k">break</span>;
+            }
+        }
+    }
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">protected</span> <span class="pl-k">void</span> <span class="pl-en">onCreate</span>(<span class="pl-smi">Bundle</span> <span class="pl-v">savedInstanceState</span>) {
+        <span class="pl-v">super</span><span class="pl-k">.</span>onCreate(savedInstanceState);
+        setContentView(<span class="pl-smi">R</span><span class="pl-k">.</span>layout<span class="pl-k">.</span>activity_main);
+
+        <span class="pl-smi">TextView</span> textView <span class="pl-k">=</span> (<span class="pl-smi">TextView</span>) findViewById(<span class="pl-smi">R</span><span class="pl-k">.</span>id<span class="pl-k">.</span>display);
+
+        <span class="pl-c">//mainThreadHandler is created in main thread and binds to main thread looper</span>
+        <span class="pl-c">//Handler and Looper belong to main thread</span>
+        <span class="pl-smi">SimpleHandler</span> mainThreadHandler <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">SimpleHandler</span>(textView);
+
+        <span class="pl-c">//deploy task to run in new thread</span>
+        <span class="pl-smi">MyThreadTask</span> myThreadTask <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">MyThreadTask</span>(mainThreadHandler, <span class="pl-c1">30</span>);
+        myThreadTask<span class="pl-k">.</span>start();
+    }
+}</pre></div>
+
+<p>来看看<code>Logcat</code>输出吧</p>
+
+<pre><code>09-20 11:01:39.514  24734-24852/? I/gyw﹕ TID:8907; MyThreadTask::run()
+09-20 11:01:39.564  24734-24734/? I/gyw﹕ TID:1; message recieved; result = 832040
+</code></pre>
+
+<p>结果正如我们的预期。在<code>14.1节</code>的最后我们提到了<code>MyAsyncTask</code>的中的<code>mTextView</code>将仍然指向第一次创建的Activity，造成了第一次创建的Activity内存泄露的问题。事实上，在本节这个例子中我们已经避免了这样的泄露。注意到当Activity重建的时候<code>textView</code>重新指向新创建的<code>Activity</code>的<code>TextView</code>，尔后<code>mainThreadHandler</code>也重新实例化，新的<code>mainThreadHandler</code>包含的是新的<code>textView</code>，从而使得UI刷新正确，并且不阻止GC之前那个旧的<code>Activity</code>。</p>
+
+<blockquote>
+<p><strong>Warning:</strong> 在代码注释中我们提到如果需要包含指向外围<code>Activity</code>的<code>Context</code>时，请使用弱引用，否则会造成泄漏，这是因为有可能存在延迟消息，使得<code>Handler</code>寿命远远长于<code>Activity</code>，从而可能造成虽然<code>Activity</code>已经被意图上销毁，但由于<code>Handler</code>所包含的<code>Context</code>引用从而造成<code>Context</code>对应的资源无法被释放。而事实上，<code>Handler</code>手上持有的<code>Context</code>意图上已经是没有意义的了。</p>
+</blockquote>
+
+<h4>
+<a id="143-handlerlooper与消息队列2" class="anchor" href="#143-handlerlooper%E4%B8%8E%E6%B6%88%E6%81%AF%E9%98%9F%E5%88%972" aria-hidden="true"><span class="octicon octicon-link"></span></a>14.3 Handler、Looper与消息队列(2)</h4>
+
+<p><code>14.2节</code>讲述了如何将消息从工作线程发往主线程并由主线程消化消息。其中我们并没有为主线程的<code>Handler</code>指定一个<code>Looper</code>对象(包括<code>Looper</code>维护的主线程消息队列)，这是由于主线程已经存在了自己的消息队列，因此不需要我们去显式去创建、绑定。然而，对于我们自己的创建的线程，则不存在这样默认的消息队列了，需要我们手动去设置。正因为如此，从主线程将消息发送到工作线程的时候，除了之前那些工作以外，还多出设置消息队列的工作。<br>
+这里我们使用<code>HandlerThread</code>类来帮助我们，这个类继承自<code>Thread</code>类，除了使得我们能获得一个新的线程，还使得我们可以使用<code>getLooper()</code>方法获得对应于新建线程的<code>Looper</code>，留给我们需要完成的工作是需要将这个<code>Looper</code>与<code>Handler</code>进行绑定，这个工作可以在<code>start()</code>同步方法中完成，这个同步方法仍然工作在主线程上。完成以后使得我们拥有一个工作在工作线程的<code>Looper</code>维护一个消息队列，并且主线程(或者其他线程)可以通过<code>Handler</code>来将消息发送到工作线程的消息队列中进而被消化。<br>
+下面的例子展示了当工作线程维护自己的<code>Looper</code>和消息队列并绑定到<code>Handler</code>上，主线程通过这个<code>Handler</code>将消息发送到工作线程，从消息中获取参数并在工作线程执行工作。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MyHandlerThread</span> <span class="pl-k">extends</span> <span class="pl-e">HandlerThread</span> {
+
+    <span class="pl-k">public</span> <span class="pl-k">static</span> <span class="pl-k">final</span> <span class="pl-k">int</span> <span class="pl-c1">INITIAL_WHAT</span> <span class="pl-k">=</span> 0X001;
+
+    <span class="pl-k">private</span> <span class="pl-smi">SimpleHandler</span> workerThreadHandler <span class="pl-k">=</span> <span class="pl-c1">null</span>;
+
+    <span class="pl-k">private</span> <span class="pl-k">static</span> <span class="pl-k">class</span> <span class="pl-en">SimpleHandler</span> <span class="pl-k">extends</span> <span class="pl-e">Handler</span> {
+
+        <span class="pl-k">public</span> <span class="pl-en">SimpleHandler</span>(<span class="pl-smi">Looper</span> <span class="pl-v">looper</span>) {
+            <span class="pl-v">super</span>(looper);
+        }
+
+        <span class="pl-k">@Override</span>
+        <span class="pl-k">public</span> <span class="pl-k">void</span> <span class="pl-en">handleMessage</span>(<span class="pl-smi">Message</span> <span class="pl-v">msg</span>) {
+            <span class="pl-v">super</span><span class="pl-k">.</span>handleMessage(msg);
+            <span class="pl-k">switch</span> (msg<span class="pl-k">.</span>what) {
+                <span class="pl-k">case</span> <span class="pl-c1">INITIAL_WHAT</span><span class="pl-k">:</span>
+                    <span class="pl-c">//This works in the worker thread now!</span>
+                    <span class="pl-k">int</span> number <span class="pl-k">=</span> msg<span class="pl-k">.</span>arg1;
+                    <span class="pl-smi">BigInteger</span> result <span class="pl-k">=</span> computeRecursively(number); <span class="pl-c">//see chapter 13.3</span>
+                    <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>result = <span class="pl-pds">"</span></span> <span class="pl-k">+</span> result);
+                    <span class="pl-k">break</span>;
+            }
+        }
+    }
+
+    <span class="pl-k">public</span> <span class="pl-en">MyHandlerThread</span>(<span class="pl-smi">String</span> <span class="pl-v">name</span>) {
+        <span class="pl-v">super</span>(name);
+    }
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">public</span> <span class="pl-k">synchronized</span> <span class="pl-k">void</span> <span class="pl-en">start</span>() {
+        <span class="pl-c">//This still works in the main thread</span>
+        <span class="pl-v">super</span><span class="pl-k">.</span>start();
+        workerThreadHandler <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">SimpleHandler</span>(getLooper()); <span class="pl-c">//bind to worker thread looper</span>
+        <span class="pl-smi">LogUtil</span><span class="pl-k">.</span>logThreadId(<span class="pl-s"><span class="pl-pds">"</span>start()<span class="pl-pds">"</span></span>);
+    }
+
+    <span class="pl-k">public</span> <span class="pl-smi">Handler</span> <span class="pl-en">getHandler</span>() {
+        <span class="pl-k">return</span> workerThreadHandler;
+    }
+}</pre></div>
+
+<p><code>getLooper()</code>方法会一直阻塞到Looper对象初始化完成，然后传给<code>Handler</code>。</p>
+
+<div class="highlight highlight-source-java"><pre><span class="pl-k">public</span> <span class="pl-k">class</span> <span class="pl-en">MainActivity</span> <span class="pl-k">extends</span> <span class="pl-e">AppCompatActivity</span> {
+
+    <span class="pl-k">@Override</span>
+    <span class="pl-k">protected</span> <span class="pl-k">void</span> <span class="pl-en">onCreate</span>(<span class="pl-smi">Bundle</span> <span class="pl-v">savedInstanceState</span>) {
+        <span class="pl-v">super</span><span class="pl-k">.</span>onCreate(savedInstanceState);
+        setContentView(<span class="pl-smi">R</span><span class="pl-k">.</span>layout<span class="pl-k">.</span>activity_main);
+
+        <span class="pl-smi">MyHandlerThread</span> myHandlerThread <span class="pl-k">=</span> <span class="pl-k">new</span> <span class="pl-smi">MyHandlerThread</span>(<span class="pl-s"><span class="pl-pds">"</span>gyw<span class="pl-pds">"</span></span>);
+        myHandlerThread<span class="pl-k">.</span>start();
+
+        <span class="pl-smi">Handler</span> workerThreadHandler <span class="pl-k">=</span> myHandlerThread<span class="pl-k">.</span>getHandler();
+        workerThreadHandler<span class="pl-k">.</span>sendMessage(
+                workerThreadHandler<span class="pl-k">.</span>obtainMessage(<span class="pl-smi">MyHandlerThread</span><span class="pl-c1"><span class="pl-k">.</span>INITIAL_WHAT</span>,
+                        <span class="pl-c1">30</span>, <span class="pl-c1">0</span>));
+    }
+
+}</pre></div>
+
+<p>程序运行结果如下</p>
+
+<pre><code>09-20 22:13:22.913    2769-2769/? I/gyw﹕ TID:1; start()
+09-20 22:13:22.913    2769-2782/? I/gyw﹕ TID:9066; result = 832040
+</code></pre>
+
+      <footer class="site-footer">
+        <span class="site-footer-owner"><a href="https://github.com/byrcoder-docs/android_multithreading">Android multithreading</a> is maintained by <a href="https://github.com/byrcoder-docs">byrcoder-docs</a>.</span>
+
+        <span class="site-footer-credits">This page was generated by <a href="https://pages.github.com">GitHub Pages</a> using the <a href="https://github.com/jasonlong/cayman-theme">Cayman theme</a> by <a href="https://twitter.com/jasonlong">Jason Long</a>.</span>
+      </footer>
+
+    </section>
+
+  
+  </body>
+</html>

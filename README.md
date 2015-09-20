@@ -1,11 +1,11 @@
-### Android多线程
+## Android多线程
 使用多线程的好处通常包括提高了代码的效率，充分利用计算资源，减少系统响应时间等。譬如可以将问题划分为子问题并将子问题交给不同的线程进行处理，如果这些线程需要共享一些争用资源，那么通常对这些争用资源的访问(读或者写操作)是需要进行**互斥操作**的（解决并发问题）；如果这些线程在某些时候需要以一定次序进行，那么则需要进行**同步操作**（解决协作问题）。互斥操作和同步操作一般都称为**多线程同步问题**；另外当工作线程工作结束后，主线程可能还想知道工作线程的执行结果，不同的工作线程之间可能也希望进行**通信**(解决通信问题)。   
-Android为了保证系统对用户保持高响应性，更是强制规定了在Activity的主线程中的操作不能超过5秒，Service的主线程中的操作不能超过10秒，否则会抛出`ANR异常`。这使得我们必须要将耗时操作转移到工作线程中去。
+Android为了保证系统对用户保持高响应性，更是强制规定了在`Activity`的主线程中的操作不能超过5秒，`Service`的主线程中的操作不能超过10秒，否则会抛出`ANR异常`。这使得我们必须要将耗时操作转移到工作线程中去。
 >**Tip:** Android甚至都不允许在主线程中进行网络操作，当然这是可以理解的，因为网络操作的耗时往往是无法预期的，这取决于网络状况。
 
-#### 1. 线程基本操作
+### 1. 线程基本操作
 这里介绍几个最常用的线程基本操作，包括创建线程、中断线程、休眠线程、`join()`、阻塞/唤醒线程等方法。  
-##### 1.1 创建线程
+#### 1.1 创建线程
 在Java/Android中显式创建线程通常有两种方式:  
 1. 继承Thread类  
 2. 实现Runnable接口  
@@ -49,7 +49,7 @@ new Thread(new Runnable() {
 }).start();
 ```
 
-##### 1.2 中断线程
+#### 1.2 中断线程
 可以通过对指定线程调用`interrupt()`的方法来试图中断线程。
 ```
 MyThread thread = new MyThread();
@@ -109,13 +109,13 @@ try {
 09-18 09:14:15.486  11955-11969/? D/gyw﹕ worker thread finished
 ```
 
-##### 1.3 sleep和yield方法
+#### 1.3 sleep和yield方法
 `sleep()`的调用可以使线程进入睡眠状态，会交出CPU给别的线程去使用。在`1.2节`的例子中已经提前使用了`sleep()`方法。值得注意的是，调用`sleep()`方法并不会释放已经持有的锁。  
 `yield()`类似于`sleep()`，也会交出CPU给别的线程并且也不会释放已经持有的锁，不同的是`yield()`方法并不指出线程应该睡眠多长时间，仅仅是让出CPU以使得同一优先级的线程有机会获得CPU。
 
 >**Tip:** 关于什么是锁？锁在多线程中有什么具体用途用法？如果尚且不清楚或者不理解，没有关系，请继续往后阅读，后面会详细叙述。
 
-##### 1.4 join方法
+#### 1.4 join方法
 当在主线程中创建工作线程后，可以在主线程中调用`join()`方法来等待工作线程完成，然后再执行接下来的代码。以下是一个简单的例子。
 ```java
 public class MyThread extends Thread {
@@ -144,7 +144,7 @@ try {
 ```
 可以看到，主线程等待工作线程执行完以后，才继续执行之后的代码。
 
-##### 1.5 wait/notify方法
+#### 1.5 wait/notify方法
 `wait()`方法使得调用的线程被阻塞，并监视调用该方法的`Object`是否有`notify`消息，如果有`notify`消息，则唤醒被阻塞的线程。  
 `notify()`会唤醒通过同一个`Object`来调用`wait()`而被阻塞的线程。
 
@@ -197,18 +197,18 @@ synchronized (myThread.object) {
 
 >**Warning:** 通过某个对象使用`wait()`或者`notify()`时，必须给该对象加锁，否则将会抛出异常。
 
-##### 1.6 线程状态转换模型图
+#### 1.6 线程状态转换模型图
 本节最后以一个较详细的线程状态转换模型图来做结尾，以加深对线程状态及状态之间转移关系的理解。
 
 ![](https://lh3.googleusercontent.com/--CAG2wf6fIw/Vft8ooslvKI/AAAAAAAAA9k/JKP37-9myyw/s720-Ic42/061046391107893.jpg)
 
-#### 2. 线程池
+### 2. 线程池
 创建和销毁线程本身是一个耗时耗资源的操作，持有过多线程本身也需要消耗资源，因此应该尽可能避免创建过多的线程。一个方法是使用线程池来复用已创建的线程。Java的`ThreadPoolExecutor`类可以帮助我们创建线程池并利用线程池来执行多线程任务。
 >**Tip:** `ThreadPoolExecutor`继承自`AbstractExecutorService`，而`AbstractExecutorService`实现了`ExecutorService`接口。
 
 先来看看`ThreadPoolExecutor`这个核心类。
 
-##### 2.1 ThreadPoolExecutor构造函数
+#### 2.1 ThreadPoolExecutor构造函数
 在ThreadPoolExecutor类中提供了多种构造方法用来创建线程池，典型的有：
 ```java
 public ThreadPoolExecutor(int corePoolSize, int maximumPoolSize,
@@ -225,7 +225,7 @@ public ThreadPoolExecutor(int corePoolSize, int maximumPoolSize,
 >**Tip:** 当ArrayBlockingQueue满时，再有新的任务到来，会抛出异常。
 
 
-##### 2.2 ThreadPoolExecutor几个重要方法
+#### 2.2 ThreadPoolExecutor几个重要方法
 ```java
 execute()
 shutdown()
@@ -234,7 +234,7 @@ shutdownNow()
 `execute()`接受一个`Runnable`对象，用来向线程池提交一个任务，交由线程池去执行。   
 `shutdown()`和`shutdownNow()`都是用来关闭线程池的。他们的区别在于`shutdown()`不会立刻关闭线程池，而等到所有的等待队列的任务执行完才终止，但不会接受新的任务了；`shutdownNow()`会立刻关闭线程池，试图打断正在执行的任务，清空等待队列，返回尚未执行的任务。
 
-##### 2.3 使用ThreadPoolExecutor的例子
+#### 2.3 使用ThreadPoolExecutor的例子
 ```java
 public class MyRunnable implements Runnable {
     @Override
@@ -258,7 +258,7 @@ executor.shutdown();
 ```
 执行以后可以看到当线程池线程会被重用，当线程池中线程都被占用时，任务会被缓存到等待队列。
 
-##### 2.4 Executors类的几个静态创建线程池方法
+#### 2.4 Executors类的几个静态创建线程池方法
 ThreadPoolExecutor的构造函数参数众多，可能还不够便于使用，事实上可以利用Executors类的几个静态方法来创建线程池。
 ```java
 Executors.newSingleThreadExecutor();   //创建容量为1的线程池
@@ -279,7 +279,7 @@ executor.shutdown();
 >**Resource:** 对于Java线程池更多的知识，可以阅读以下网址：
 >[http://www.cnblogs.com/dolphin0520/p/3932921.html](http://www.cnblogs.com/dolphin0520/p/3932921.html)
 
-#### 3. Java内存模型与线程可见性
+### 3. Java内存模型与线程可见性
 先来看个典型的例子
 ```java
 //Ex3.1	线程可见性例子
@@ -314,7 +314,7 @@ volatile boolean keepRunning = true;
 >**Caution:** 必须值得注意的一点是，volatile相当于写锁有效的前提是，写的操作必须是**原子的**。如果写的操作不是原子的(譬如写操作不是`t.keepRunning = false`而是类似于`mIntIndex++`，`'++'`操作不是原子操作)，则会造成同步问题。
 
 
-#### 4. 基本并发模型
+### 4. 基本并发模型
 上面说到volatile关键字可以保证线程可见性，但并不保证线程是同步的，譬如对共享对象的并发修改，volatile无法保证修改是互斥进行的。这时候需要使用互斥操作。
 通常意义上讲，多线程并发有三种基本情况：  
 1. Read / Read 并发模型  
@@ -323,7 +323,7 @@ volatile boolean keepRunning = true;
 
 对于**Read/Read**情形并不需要使用锁来进行，仅存在对数据的读操作是线程安全的。**Write/Write**情形需要使用互斥锁来解决并发问题。**Read/Write**情形虽然也可以使用互斥锁来解决并发问题，但是使用读写锁则并发效率更高。
 
-#### 5. 互斥锁
+### 5. 互斥锁
 互斥锁可以进行互斥操作，在Java中可以通过`synchronized`关键字或者`ReentrantLock`来通过对**临界区**加互斥锁的方式解决并发问题。这对于Read/Write并发模型和Write/Write并发模型都是有效的。   
 先来看一个对共享对象并发修改有问题的例子：
 ```java
@@ -362,7 +362,7 @@ t2.start();
 ```
 这是一个典型的Write/Write问题，当多个线程同时执行对count的写操作时，就会发生同步问题，解决这个问题可以使用互斥操作。即多个线程对count的写操作是互斥的。
 
-##### 5.1 对方法加synchronized关键字修饰
+#### 5.1 对方法加synchronized关键字修饰
 ```java
 public class Test1 {
 
@@ -378,10 +378,10 @@ public class Test1 {
 ```
 对`increaseCount()`方法加`synchronized`关键词以后使得对该方法的访问变成互斥操作，同一时间只允许有一个线程执行该方法体。
 
-##### 5.2 静态方法和非静态方法加synchronized的区别
+#### 5.2 静态方法和非静态方法加synchronized的区别
 对静态方法加synchronized关键字，使得所有该类的实例在不同线程中对该静态方法的调用都是互斥的(相当于**给类加互斥锁**)。而非静态方法加synchronized关键字，只保证该类的同一个实例对非静态方法的访问是互斥的(相当于**给this加互斥锁**)。
 
-##### 5.3 synchronized块
+#### 5.3 synchronized块
 对方法加synchronized可以简单、快捷地对该方法实现多线程互斥操作，然而很多时候并不是方法中的所有语句都需要进行互斥操作，更准确地说，只有那些处于**临界区**的语句需要互斥操作，因而可以使用synchronized块来构建临界区，这样做提高了并发性和吞吐量。
 ```java
 public class Test1 {
@@ -401,7 +401,7 @@ public class Test1 {
 ```
 >**Caution:** 使用Synchronized是一种简单有效地支持多线程同步的方法，然而同步操作会降低吞吐量，并不是所有的东西都需要加锁保护，应该将**锁粒度最小化**。另外，更糟糕的是，加锁操作有可能会导致**死锁**。事实上最容易发生死锁的情况就是在一个同步代码块中调用了另一个对象的方法，而那个对象已经被锁住并等待当前对象释放该锁。因此尽量**不要在synchronized同步块中调用另一个对象的方法**，除非你非常清楚另一个对象的类的代码不会发生死锁。
 
-##### 5.4 ReentrantLock
+#### 5.4 ReentrantLock
 ReentrantLock是JDK1.5新增加的互斥锁，通常情况下，`ReentrantLock`会比`synchronized`效率要高，尤其是在搞资源争用情形下。然而，这并不表示我们要在所有情形下使用ReentrantLock替代synchronized，编写程序有一个重要的够用原则，只有在需要优化的情形下才进行优化，通常情形下synchronized的效率已经完全够用，此时并不需要改用ReentrantLock。辩证唯物地看，synchronized也具有不需要显式释放互斥锁，支持低版本JDK等优点。
 >**Resource:** 关于ReentrantLock和synchronized的效率对比以及什么时候该使用ReentrantLock的更多知识，可以参见以下链接：
 >[http://www.ibm.com/developerworks/library/j-jtp10264/](http://www.ibm.com/developerworks/library/j-jtp10264/)
@@ -426,7 +426,7 @@ public class Test1 {
 }
 ```
 
-#### 6. 读写锁
+### 6. 读写锁
 对于**Read/Write**问题可以考虑使用读写锁来解决并发问题，对于**读写锁可以保证可以有多个线程同时对资源进行读操作，而只有一个线程可以在某个时刻对资源进行写操作。**写锁类似于synchronized，获得写锁的线程可以独享写的操作，其他线程无法获得写锁或者读锁，直到写锁被释放。获得读锁的线程可以允许其他线程获得读锁，但直到所有的读锁被释放才允许某个线程获得写锁。   
 首先看一个简单的并发读写例子。
 ```java
@@ -536,7 +536,7 @@ public class Test2 {
 }
 ```
 
-#### 7. 无锁操作
+### 7. 无锁操作
 `第5节`和`第6节`分别详述了使用互斥锁和读写锁来解决对共享变量的多线程并发问题。事实上，加锁操作意味着线程需要等待，一般来讲，会损失效率，当然在绝大多数情况下，这并不是特别大的问题。
 >**Tip:** 还是重复之前那个原则，**程序编写的原则是够用原则**，只有在需要优化的情况下才考虑对效率的优化，并且优化的首要步骤是改进算法而不是改进实现，通常项目进度、异常处理、代码的可维护性是更重要的因子，**优化需要抱着务实的态度**。
 
@@ -557,7 +557,7 @@ public class Test3 {
 ```
 >**Warnning** 注意使用`volatile`关键字来保证线程可见性。
 
-#### 8. 线程安全的数据结构
+### 8. 线程安全的数据结构
 `第7节`讲到了一些基本的`Atomic`变量可以用于并发操作，Java支持对一些更高级数据结构的安全访问，譬如`CopyOnWriteArrayList`、`ConcurrentLinkedQueue`和`ConcurrentHashMap`,分别支持数组和映射数据结构进行线程安全地访问。
 >**Tip:** `HashTable`也是线程安全的，然而其效率要低于`ConcurrentHashMap`，这是由于`ConcurrentHashMap`采取了部分锁机制，而非使用全锁。更深入的了解可以点击下面的网址：
 >[http://wiki.jikexueyuan.com/project/java-collection/concurrenthashmap.html](http://wiki.jikexueyuan.com/project/java-collection/concurrenthashmap.html)
@@ -637,11 +637,11 @@ public void not_a_transaction() {
 >```
 >在put和get之间是有可能存在cpu被其他线程占用并执行对safeMap操作的情形，如果需要确保这样的操作是事物性的，可以考虑使用`synchronized`。
 
-#### 9. 信号量(Semaphore)
+### 9. 信号量(Semaphore)
 信号量是较为低级的多线程同步机制，但是仍然表现出强大的性能，信号量既可以充当互斥锁来解决并发问题，也可以进行同步操作解决多线程协作问题。  
 信号量使用两个简单的原语操作，即**wait操作**(也叫P操作/acquire操作)和**post操作**(也叫V操作/signal操作/release操作)来实现对争用资源的互斥访问和多线程间的同步操作。先来讲解下**wait/post原语**操作。
 
-##### 9.1 wait/post原语
+#### 9.1 wait/post原语
 ```
 wait原语
 ----------
@@ -660,7 +660,7 @@ Procedure sem_post(Semaphore S)
           唤醒进程
 ```
 
-##### 9.2 Java semaphore APIs
+#### 9.2 Java semaphore APIs
 只列举几个最常用的API
 ```java
 Semaphore(int permits) //构造函数，permits为信号量初值
@@ -673,7 +673,7 @@ public void release()  //post操作，信号量加1
 public void release(int n)  //post操作，信号量加n
 ```
 
-##### 9.3 信号量充当互斥锁
+#### 9.3 信号量充当互斥锁
 `第5节`讲到了Java中典型关于互斥锁的应用，这里展示如何使用信号量充当互斥锁。  
 **充当互斥锁需要将信号量初始值置为1**
 ```java
@@ -713,7 +713,7 @@ for (int i = 0; i < 5; ++i) {
 executor.shutdown();
 ```
 
-##### 9.4 用信号量实现线程顺序执行
+#### 9.4 用信号量实现线程顺序执行
 信号量可以保证若干线程按顺序执行。
 **信号量初始值设为0**
 ```java
@@ -748,7 +748,7 @@ thread1.start();
 09-16 09:32:15.996  31560-31574/? D/gyw﹕ I am thread2
 ```
 
-##### 9.5 无限长队列的生产者-消费者问题
+#### 9.5 无限长队列的生产者-消费者问题
 生产者-消费者问题是用一个线程模拟生产者，每次生产一个产品放入队列中；用另一个线程模拟消费者，每次从队列中取走一个产品来消费。这个问题既涉及到**并发控制**，也涉及到**同步控制**。  
 因为队列是共享的，所以在多线程都对其进行操作时需要进行并发控制，可以使用并发锁；也因为生产者，消费者这两个线程间存在反馈抑制，因此需要进行同步控制。对于无限长队列来说，不用担心队列溢出的问题，因此生产者可以放肆进行生产，因此不存在对生产者的反馈抑制；而对于消费者，必须是队列中已经存在了产品才可以进行消费，因此存在生产者对消费者的反馈抑制，即生产者生产了一个产品向消费者发出`post`通知，消费者必须首先调用`wait`操作来确认是否存在产品进行消费，否则必须阻塞自己来安静等待生产者的`post`通知的到来。  
 如果使用`semaphore`来进行并发控制，只需要设置一个`sem_canConsume`信号量即可，**初值设为0**，含义是一开始的时候并没有产品生产出来。以下是一个`Demo`。
@@ -792,7 +792,7 @@ producer.start();
 consumer.start();
 ```
 
-##### 9.6 有限长队列的生产者-消费者问题
+#### 9.6 有限长队列的生产者-消费者问题
 和无限长队列同类问题比较起来，由于队列是有限长的，因此存在了消费者对生产者的反馈抑制。如果使用`semaphore`来进行并发控制，除了设置一个`sem_canConsume`信号量来实现生产者对消费者的反馈抑制，**初值设为0**，含义是一开始的时候并没有产品生产出来；还需要设置一个`sem_canProduce`信号量来实现消费者对生产者的反馈抑制，**初值设为队列长度QUEUE_LEN**，含义是最开始的时候有QUEUE_LEN个位置可以供生产者使用。以下是一个`Demo`。
 ```java
 final int QUEUE_LEN = 3;
@@ -878,10 +878,10 @@ consumer.start();
 可以看到，`queueSize`从来没有超过程序中设置的`QUEUE_LEN`值，意味着成功实现了消费者对生产者的反馈抑制；`queueSize`也从来没有是负值或者程序抛出异常，意味着成功实现了生产者对消费者的反馈抑制。
 >**Tip:** 简单地使用信号量无法做到**多生产者-多消费者**的同步控制。这个问题将留在后面章节解决。
 
-#### 10. 条件变量(Condition)
+### 10. 条件变量(Condition)
 Java条件变量可以用来进行线程间的同步控制，尤其是在反馈调节上较`semaphore`更为强大。
 
-##### 10.1 条件变量常用APIs
+#### 10.1 条件变量常用APIs
 ```java
 //初始化条件变量
 ReentrantLock lock = new ReentrantLock();
@@ -893,7 +893,7 @@ signal() //post操作
 
 以下展示如何使用条件变量解决生产者-消费者问题。
 
-##### 10.2 有限长队列的生产者-消费者问题
+#### 10.2 有限长队列的生产者-消费者问题
 先来看看生产者和消费者的代码，这里面包含了如何用锁来解决并发控制，以及如何用条件变量来解决同步控制。
 ```java
 private static final int QUEUE_LEN = 3;
@@ -993,7 +993,7 @@ executor.shutdown();
 ```
 从结果中可以看出，当队列满的时候，生产者被抑制；当队列空的时候，消费者被抑制。
 
-##### 10.3 有限长队列的多生产者-多消费者问题
+#### 10.3 有限长队列的多生产者-多消费者问题
 `第9节`结尾提到，简单使用信号量无法解决**多生产者-多消费者**的同步控制问题，然而简单使用**条件变量**却很容易解决这个问题，简单到事实上这个问题已经解决了！没错就是在刚刚讲解的`10.2节`，**多生产者-多消费者**和**单生产者-单消费者**问题使用**条件变量**来解决同步控制问题是完全一致的。   
 其中生产者、消费者、条件变量申明无需变化，仅仅修改下启动代码就可以，修改也只是添加多了生产者和消费者线程来做演示。
 ```java
@@ -1050,7 +1050,7 @@ executor.shutdown();
 09-17 08:20:17.885  21155-21170/? D/gyw﹕ consumed; queueSize = 0
 ```
 
-##### 10.4 假唤醒问题
+#### 10.4 假唤醒问题
 如果将10.3节的生产者和消费者代码中的
 ```java
 while (queue.size() == 0) { //queue is empty
@@ -1070,11 +1070,11 @@ if (queue.size() == 0) { //queue is empty
 
 >**Warning:** 使用条件变量时，尽量使用`while`来判断条件是否达到，而不是`if`，从而避免假唤醒带来的错误。
 
-#### 11. 阻塞队列(Block Queue)
+### 11. 阻塞队列(Block Queue)
 阻塞队列用途多种多样，在`2.1`节中就提到了Java线程池使用阻塞队列作为线程缓存队列。不只是如此，在多线程同步控制上，阻塞队列也是可以大显身手的。  
 事实上，阻塞队列的实现就是使用到了`第10节`讲到的条件变量，使用一个`ReentrantLock`来控制队列的并发，用两个`Condition`变量来控制队列的同步。
 
-##### 11.1 几种常用的阻塞队列
+#### 11.1 几种常用的阻塞队列
 1. **ArrayBlockingQueue：** 基于数组实现的一个阻塞队列，在创建ArrayBlockingQueue对象时必须指定容量大小。另外可以指定公平性，即不保证等待时间最长的队列最优先能够访问队列。
 2. **LinkedBlockingQueue：** 基于链表实现的一个阻塞队列，在创建LinkedBlockingQueue对象时如果不指定容量大小，则默认大小为Integer.MAX_VALUE。由于内存是动态分配的，通常情况下无需指定容量大小。
 3. **PriorityBlockingQueue：** 基于堆实现的一个阻塞队列，不同于`ArrayBlockingQueue`和`LinkedBlockingQueue`的先进先出性质，`PriorityBlockingQueue`会按照队列元素优先级顺序出队，每次出队的元素都是优先级最高的元素。无需指定容量大小。
@@ -1082,7 +1082,7 @@ if (queue.size() == 0) { //queue is empty
 
 >**Tip:** 以上所说的常用阻塞队列中，前两种是有界队列，后两种是无界队列。
 
-##### 11.2 阻塞队列基本APIs
+#### 11.2 阻塞队列基本APIs
 阻塞队列支持常规队列的基本操作，包括
 ```
 add(E e)：队尾插入元素，插入失败则抛出异常。
@@ -1107,7 +1107,7 @@ BlockingQueue<Integer> queue = new ArrayBlockingQueue<Integer>(3)
 BlockingQueue<String> queue = new LinkedBlockingDeque<>()
 ```
 
-##### 11.3 使用阻塞队列解决多生产者-多消费者同步问题
+#### 11.3 使用阻塞队列解决多生产者-多消费者同步问题
 使用阻塞队列来解决**生产者-消费者**问题大概从编程上来说最简单的了，由于并发控制和同步控制代码已经被阻塞队列自身实现所封装，我们从代码的表面已经看不到并发控制和同步控制了。
 消费者和生产者代码如下：
 ```java
@@ -1139,9 +1139,9 @@ public void consumer() {
 启动代码和`10.3节`完全一致，这里就不再累赘列举了。
 
 
-#### 12. 线程特有数据(TSD: Thread-Specific Data)
+### 12. 线程特有数据(TSD: Thread-Specific Data)
 在上面很多章节中都存在多个线程对共享对象的访问，那么究竟哪些数据是可以在线程间共享的，哪些数据又是每个线程所特有的呢？一般来说，**堆区和静态区内存是可以在线程间进行共享的，而栈区内存是属于每个线程所特有的**。以下详述几种常见情形。
-##### 12.1 静态成员变量在不同实例化对象间是线程共享的，而非静态变量在不同实例化对象间是线程特有的
+#### 12.1 静态成员变量在不同实例化对象间是线程共享的，而非静态变量在不同实例化对象间是线程特有的
 这是由静态成员变量属于类，而非静态成员变量属于对象这一基本特性所决定的。事实上，即使在同一个线程中，情形也是完全一样的，因此这种情形和线程关系并不是很大，唯一需要注意的是对共享变量的多线程并发修改是需要加锁的，下同。
 ```java
 public class Foo {
@@ -1199,7 +1199,7 @@ foo2.print();
 09-18 12:17:51.155  15895-15895/? D/gyw﹕ sharedInteger = 2; notSharedInteger = 1
 ```
 
-##### 12.2 非静态成员变量对同一个实例化对象是线程共享的
+#### 12.2 非静态成员变量对同一个实例化对象是线程共享的
 非静态成员变量虽然在不同实例化对象是拥有自己的一份拷贝，然而对于同一个实例对象来说(譬如函数间)，它是线程共享的。
 ```java
 public class Foo {
@@ -1252,7 +1252,7 @@ final Foo foo = new Foo();
 09-18 12:26:18.905  16071-16071/? D/gyw﹕ sharedInteger = 2
 ```
 
-##### 12.3 局部变量是线程特有的
+#### 12.3 局部变量是线程特有的
 局部变量位于栈区，因此是线程特有的。
 ```java
 public class Foo {
@@ -1292,7 +1292,7 @@ thread2.start();
 09-18 12:36:27.295  16281-16295/? D/gyw﹕ localVariable = 1
 ```
 
-##### 12.4 ThreadLocal对象
+#### 12.4 ThreadLocal对象
 `12.1节`说到静态成员变量在不同实例化对象间是线程共享的(当然对同一个实例化对象更是线程共享了)，`12.1节`非静态成员变量对同一个实例化对象是线程共享的。事实上使用`ThreadLocal`就可以将这些共享的成员变量变成线程特有的(也成为线程私有的)。`ThreadLocal`提供以下常见方法：
 ```java
 public T get();  //获取当前线程的ThreadLocal绑定值
@@ -1349,14 +1349,14 @@ thread2.start();
 >**Resource:** 关于`ThreadLocal`更多的知识，可以访问以下网址：
 [http://qifuguang.me/2015/09/02/[Java%E5%B9%B6%E5%8F%91%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%B8%83]%E8%A7%A3%E5%AF%86ThreadLocal/](http://qifuguang.me/2015/09/02/[Java%E5%B9%B6%E5%8F%91%E5%8C%85%E5%AD%A6%E4%B9%A0%E4%B8%83]%E8%A7%A3%E5%AF%86ThreadLocal/)
 
-#### 13. 主线程与工作线程之间同步通信
+### 13. 主线程与工作线程之间同步通信
 `1.1节`讲述了Java两种显式创建线程的方法，`第2节`讲述了如何使用线程池来在新线程中执行`Runnable`任务。当主线程不需要了解工作线程执行任务的情况，譬如结果，那么`第2节`的关于线程池的知识就已经足够了。然而，如果我们希望能在主线程中当工作线程结束时知道工作线程的任务结果，又能怎么办呢？本节将讲述使用`Callable`对象配合`Future`来实现这一点。  
 
 >**Tip:** 通过共享变量也可以做到这一点，但是一方面这破坏了封装性，另一方面在多线程中使用共享变量容易出错。使用`Callable`对象配合`Future`可以简单方便地实现主线程和工作线程之间的通信。
 
 在`第2节`介绍`ExecutorService`的时候，我们讲述了可以利用`execute(Runnable r)`方法来使用线程池执行`Runnable`任务。事实上，`ExecutorService`还有一个`Future<T> submit(Callable<T> task)`方法也可以利用线程池执行新线程任务，`T`是任务执行完成返回结果的类型。  
 
-##### 13.1 Callable对象
+#### 13.1 Callable对象
 可以看到`submit()`方法可以接受一个`Callable`对象，类似于`Runnable`可以在其`run()`方法里写进那些需要在新线程中执行的代码，也可以在`Callable`的`call()`方法中写进那些需要在新线程中执行的代码。唯一不同的是`run()`方法没有返回值，而`call()`方法可以返回泛型类型为`T`的结果对象。
 ```java
 //define callable
@@ -1369,7 +1369,7 @@ Callable<Integer> callable = new Callable<Integer>() {
 };
 ```
 
-##### 13.2 Future
+#### 13.2 Future
 另外我们可以看到`submit()`返回了一个`Future<T>`类型的对象，我们可以通过返回的这个`Future`对象来在主线程中获取工作线程的执行结果，事实上，通过`Future`可以允许我们做得更多。首先来看看`Future`接口。
 ```java
 public interface Future<V> {
@@ -1416,7 +1416,7 @@ LogUtil.logThreadId("main thread done all works");
 09-18 22:04:06.355  24500-24500/? I/gyw﹕ TID:1; main thread done all works
 ```
 
-##### 13.3 利用多线程计算Fibonacci数列
+#### 13.3 利用多线程计算Fibonacci数列
 先来看下单线程计算Fibonacci数列的情形，最简单的版本是可以利用递归去实现，从算法角度来讲就是**分治法(Divide and Conquer)**。由于计算数列算法本身非常简单，直接给出递归实现的代码。
 ```java
 public long computeRecursively(int n) {
@@ -1541,9 +1541,9 @@ public BigInteger computeRecursivelyWithTwoThreads(final int n) {
 ```
 由于多个线程会对`cache`值进行访问，因此存在并发访问问题，这里使用`ConcurrentHashMap`来解决`cache`的并发访问问题，使得`cache`是线程安全的。
 
->**Tip:** 对于多线程，设置多少个线程数合适的问题，这个依赖具体情况。一个指导原则是
->1. 对CPU密集任务，设置线程数为 **CPU_NUM + 1**；
->2. 对于I/O密集任务， 设置线程数为 **2 * CPU_NUM**。
+>**Tip:** 对于多线程，设置多少个线程数合适的问题，这个依赖具体情况。一个指导原则是  
+>1. 对CPU密集任务，设置线程数为 **CPU_NUM + 1**；  
+>2. 对于I/O密集任务， 设置线程数为 **2 * CPU_NUM**。  
 
 到了这里，似乎一切都很完美，然而还差一个问题，使用多线程写出来的程序真的效率比单线程高很多么？不得不泼一盆凉水，尽管代码变复杂了，愿望也是美好的，然而事实往往不尽如人意。在两核cpu上执行效率非但往往达不到单线程单核cpu的2倍，**很多情况下比单线程效率还要低下**！这一方面由于线程创建、调度、销毁需要费事费力，cpu调度算法也要消耗计算资源，更因为很多时候由于并发、同步等问题使得线程不得不阻塞等待，这些都导致了多线程效率的低下。
 
@@ -1587,3 +1587,260 @@ Log.d("gyw", "result = " + result + " computeRecursivelyWithTwoThreads; duration
 09-19 10:01:02.385    4539-4539/? D/gyw﹕ result = 176023680645013966468226945392411250770384383304492191886725992896575345044216019675 computeRecursivelyWithTwoThreads; duration = 5307339ns = 5ms
 ```
 从测试的结果中我们可以看出，当问题规模较小的时候，单线程的执行效率更高；当问题规模趋于增大的时候，多线程的优势逐渐显现，知道`N = 400`的时候，多线程执行效率高出了单线程的3倍还多。
+
+### 14. 主线程与工作线程之间异步通信
+上一节说到了主线程与工作线程之间可以通过`Callable`和`Future`进行同步通信，主线程会阻塞自己等待工作线程的执行结果。然而这样的同步通信在很多情况下是不合适的，如果主线程负载其他重要工作而不得挂起等待工作线程结束以后才继续执行，这一方面影响了主线程执行效率，更会影响到其他在主线程中的重要工作的执行。在Android中，这一点尤为明显，主线程主要负责UI工作，如果主线程被阻塞等待，则UI会失去响应，这将严重影响用户体验。更何况Android为了强化这一点，强制要求在`Activity`中主线程不能被持有超过5s，`Service`中主线程不能被持有超过10s，一旦超过，Android系统就会抛出`ANR`异常。  
+异步通信就可以解决这样的问题，使得主线程执行效率得到提高并且可以始终响应譬如UI事件这样更重要的工作。工作线程在完成工作后通知主线程工作已完成并将结果以某种方式告知主线程，主线程拿到结果以后可以用来譬如刷新UI显示。
+
+>**Tip:** Android规定对UI的操作必须在主线程内完成，因此有时候主线程也会被称为**UI线程**。
+
+下面就来看一下Android中封装的`AsyncTask`类，这个类是多线程异步通信的典范。
+#### 14.1 AsyncTask类
+`AsyncTask`类强化了这样的封装：将需要处理的事情方法到新建的工作线程中去做，当工作完成后将结果发送给主线程，在主线程中刷新UI。`AsyncTask`类会自动创建工作线程，发送结果也是封装好的，使用者只需要覆写几个方法就可以了，现在具体来看一看这几个方法。
+```java
+public class MyAsyncTask extends AsyncTask<Integer, Void, BigInteger> {
+
+    @Override
+    protected BigInteger doInBackground(Integer... integers) {
+        //Work in worker thread
+        //publishProgress() method can be applied here to inform execution progress
+        return null;
+    }
+
+    @Override
+    protected void onPreExecute() {
+        super.onPreExecute();
+        //Work in main thread
+        //This method is called before worker thread begins
+    }
+
+    @Override
+    protected void onPostExecute(BigInteger bigInteger) {
+        super.onPostExecute(bigInteger);
+        //Work in main thread
+        //This method is called after worker thread finishes
+        //Para is the worker thread execution result
+        //UI is refreshed here
+    }
+
+    @Override
+    protected void onProgressUpdate(Void... values) {
+        super.onProgressUpdate(values);
+        //Work in main thread
+        //Got called when publishProgress() is invoked
+    }
+}
+```
+`AsyncTask`类需要指定泛型参数类型，分别对应于**工作线程传入参数类型**(`doInBackground()`传入参数)、**工作线程执行中刷新参数值**(`onProgressUpdate()`参数值)和**工作线程返回结果类型**(`doInBackground()`返回值和`onPostExecute()`参数)。  
+`doInBackground()`里面就是需要在工作线程中执行的代码，并将结果返回给主线程，从而可以在`onPostExecute()`中将执行结果刷新到UI，事实上除了`doInBackground()`方法执行在工作线程，其他几个方法都执行在主线程上。   
+下面就给出一个使用`AsyncTask`计算Fibonacci数列并将结果刷新到`TextView`上显示的简单例子。
+```java
+public class MyAsyncTask extends AsyncTask<Integer, Void, BigInteger> {
+
+    private TextView mTextView;
+
+    public MyAsyncTask(TextView mTextView) {
+        this.mTextView = mTextView;
+    }
+
+    @Override
+    protected BigInteger doInBackground(Integer... n) {
+        Log.d("gyw", "MyAsyncTask::doInBackground()");
+        return computeRecursively(n[0]);  //See Chapter 13.3
+    }
+
+    @Override
+    protected void onPreExecute() {
+        super.onPreExecute();
+        Log.d("gyw", "MyAsyncTask::onPreExecute()");
+    }
+
+    @Override
+    protected void onPostExecute(BigInteger result) {
+        super.onPostExecute(result);
+        Log.d("gyw", "MyAsyncTask::onPostExecute(); result = " + result);
+        mTextView.setText(result.toString()); //update textView
+    }
+}
+```
+
+```java
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        TextView textView = (TextView) findViewById(R.id.display);
+
+        MyAsyncTask myAsyncTask = new MyAsyncTask(textView);
+        myAsyncTask.execute(30);
+    }
+    
+}
+```
+顺便看下`LogCat`日志
+```
+09-20 09:56:38.754  23657-23657/? I/gyw﹕ TID:1; MyAsyncTask::onPreExecute()
+09-20 09:56:38.754  23657-23670/? I/gyw﹕ TID:8865; MyAsyncTask::doInBackground()
+09-20 09:56:38.764  23657-23657/? I/gyw﹕ TID:1; MyAsyncTask::onPostExecute(); result = 832040
+```
+
+>**Warning:** 需要指出的是给出的`Demo`例子当遇到`Configuration Change`的时候(譬如屏幕旋转)是有bug的，潜在的bug包括`onCreate()`会重新被调用从而使得第一次的任务没有完成或者取消的情况下，又执行一次同样的任务。另外，更大的问题在于`MyAsyncTask`的中的`mTextView`将仍然指向第一次创建的`Activity`，这使得刷新UI存在潜在问题，另外也造成了第一次创建的`Activity`内存泄露了。这些问题的解决并非本文的重点，也超出本文的范畴，这里不再赘述。
+
+#### 14.2 Handler、Looper与消息队列(1)
+`AsyncTask`类虽然是多线程异步通信的典范，其最大优点便是使用简单，但是过多的封装也造成灵活性的下降，另外当存在多个工作线程时代码也显得非常臃肿。事实上`AysncTask`实现中就是使用了`Handler`、`Looper`和消息队列。为了厘清`Handler`、`Looper`和消息队列之间的关系，先来看一个关系图。
+
+![](https://lh3.googleusercontent.com/-8TW7OiMn5g4/Vf4ayHT9uoI/AAAAAAAAA9w/RC5xaQXDHC0/s640-Ic42/192914506.png)
+
+这个关系图清晰地展示了主线程和工作线程如何通过`Handler`、`Looper`和消息队列进行通信的，当然这里展示的仅仅是工作线程向主线程发送消息，而这正是`AsyncTask`所抽象的东西。  
+每一个`Looper`会直接维护一个消息队列并启动消息队列循环，即不断取出消息来消化。图中的`Looper`是主线程的`Looper`，而消息是不断发往主线程的消息队列中等待主线程处理的。而工作线程正是通过主线程的`Handler`来将消息发往主线程的消息队列。   
+下面就用一个`Demo`来实现与`14.1节`用`AsyncTask`来实现的完全一样的功能，只不过这一次，我们自己来创建工作线程去执行任务，执行完任务我们自己使用`Handler`将消息发送回主线程，并让主线程去刷新UI。
+```java
+public class MyThreadTask extends Thread {
+
+    public static final int MYTHREADTASK_RESULT = 0X001;
+    
+    private int n;
+    private Handler mainThreadHandler = null;
+
+    public MyThreadTask(Handler mainThreadHandler, int n) {
+        this.mainThreadHandler = mainThreadHandler;
+        this.n = n;
+    }
+
+    @Override
+    public void run() {
+        super.run();
+        LogUtil.logThreadId("MyThreadTask::run()");
+        BigInteger result = computeRecursively(n);
+        mainThreadHandler.sendMessage(mainThreadHandler.obtainMessage(MYTHREADTASK_RESULT, result));
+    }
+}
+```
+
+```java
+public class MainActivity extends AppCompatActivity {
+
+    private static class SimpleHandler extends Handler {
+        // If outter-context will be referred; consider using weak reference to avoid context memory leak
+        private TextView mtextView;
+
+        public SimpleHandler(TextView mtextView) {
+            this.mtextView = mtextView;
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            switch (msg.what) {
+                case MyThreadTask.MYTHREADTASK_RESULT:
+                    //digest result
+                    BigInteger result = (BigInteger) msg.obj;
+                    LogUtil.logThreadId("message recieved; result = " + result.toString());
+                    mtextView.setText(result.toString());
+                    break;
+            }
+        }
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+
+        TextView textView = (TextView) findViewById(R.id.display);
+
+        //mainThreadHandler is created in main thread and binds to main thread looper
+        //Handler and Looper belong to main thread
+        SimpleHandler mainThreadHandler = new SimpleHandler(textView);
+
+        //deploy task to run in new thread
+        MyThreadTask myThreadTask = new MyThreadTask(mainThreadHandler, 30);
+        myThreadTask.start();
+    }
+}
+```
+来看看`Logcat`输出吧
+```
+09-20 11:01:39.514  24734-24852/? I/gyw﹕ TID:8907; MyThreadTask::run()
+09-20 11:01:39.564  24734-24734/? I/gyw﹕ TID:1; message recieved; result = 832040
+```
+结果正如我们的预期。在`14.1节`的最后我们提到了`MyAsyncTask`的中的`mTextView`将仍然指向第一次创建的Activity，造成了第一次创建的Activity内存泄露的问题。事实上，在本节这个例子中我们已经避免了这样的泄露。注意到当Activity重建的时候`textView`重新指向新创建的`Activity`的`TextView`，尔后`mainThreadHandler`也重新实例化，新的`mainThreadHandler`包含的是新的`textView`，从而使得UI刷新正确，并且不阻止GC之前那个旧的`Activity`。
+
+>**Warning:** 在代码注释中我们提到如果需要包含指向外围`Activity`的`Context`时，请使用弱引用，否则会造成泄漏，这是因为有可能存在延迟消息，使得`Handler`寿命远远长于`Activity`，从而可能造成虽然`Activity`已经被意图上销毁，但由于`Handler`所包含的`Context`引用从而造成`Context`对应的资源无法被释放。而事实上，`Handler`手上持有的`Context`意图上已经是没有意义的了。
+
+#### 14.3 Handler、Looper与消息队列(2)
+`14.2节`讲述了如何将消息从工作线程发往主线程并由主线程消化消息。其中我们并没有为主线程的`Handler`指定一个`Looper`对象(包括`Looper`维护的主线程消息队列)，这是由于主线程已经存在了自己的消息队列，因此不需要我们去显式去创建、绑定。然而，对于我们自己的创建的线程，则不存在这样默认的消息队列了，需要我们手动去设置。正因为如此，从主线程将消息发送到工作线程的时候，除了之前那些工作以外，还多出设置消息队列的工作。  
+这里我们使用`HandlerThread`类来帮助我们，这个类继承自`Thread`类，除了使得我们能获得一个新的线程，还使得我们可以使用`getLooper()`方法获得对应于新建线程的`Looper`，留给我们需要完成的工作是需要将这个`Looper`与`Handler`进行绑定，这个工作可以在`start()`同步方法中完成，这个同步方法仍然工作在主线程上。完成以后使得我们拥有一个工作在工作线程的`Looper`维护一个消息队列，并且主线程(或者其他线程)可以通过`Handler`来将消息发送到工作线程的消息队列中进而被消化。  
+下面的例子展示了当工作线程维护自己的`Looper`和消息队列并绑定到`Handler`上，主线程通过这个`Handler`将消息发送到工作线程，从消息中获取参数并在工作线程执行工作。
+```java
+public class MyHandlerThread extends HandlerThread {
+
+    public static final int INITIAL_WHAT = 0X001;
+
+    private SimpleHandler workerThreadHandler = null;
+
+    private static class SimpleHandler extends Handler {
+
+        public SimpleHandler(Looper looper) {
+            super(looper);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            super.handleMessage(msg);
+            switch (msg.what) {
+                case INITIAL_WHAT:
+                    //This works in the worker thread now!
+                    int number = msg.arg1;
+                    BigInteger result = computeRecursively(number); //see chapter 13.3
+                    LogUtil.logThreadId("result = " + result);
+                    break;
+            }
+        }
+    }
+
+    public MyHandlerThread(String name) {
+        super(name);
+    }
+
+    @Override
+    public synchronized void start() {
+        //This still works in the main thread
+        super.start();
+        workerThreadHandler = new SimpleHandler(getLooper()); //bind to worker thread looper
+        LogUtil.logThreadId("start()");
+    }
+
+    public Handler getHandler() {
+        return workerThreadHandler;
+    }
+}
+```
+`getLooper()`方法会一直阻塞到Looper对象初始化完成，然后传给`Handler`。
+```java
+public class MainActivity extends AppCompatActivity {
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
+        
+        MyHandlerThread myHandlerThread = new MyHandlerThread("gyw");
+        myHandlerThread.start();
+
+        Handler workerThreadHandler = myHandlerThread.getHandler();
+        workerThreadHandler.sendMessage(
+                workerThreadHandler.obtainMessage(MyHandlerThread.INITIAL_WHAT,
+                        30, 0));
+    }
+
+}
+```
+程序运行结果如下
+```
+09-20 22:13:22.913    2769-2769/? I/gyw﹕ TID:1; start()
+09-20 22:13:22.913    2769-2782/? I/gyw﹕ TID:9066; result = 832040
+```
